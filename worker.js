@@ -716,6 +716,238 @@ function json(
       }
     }
   );
+      }) {
+          message = parsed;
+        }
+      } catch {}
+
+      throw new Error(message);
+    }
+  }
+
+  return null;
+}
+
+
+// =====================================================
+// البحث عن ملف صوت
+// =====================================================
+
+function findAudioFile(value) {
+  if (!value) {
+    return null;
+  }
+
+  // =========================================
+  // التحقق من Object
+  // =========================================
+
+  if (typeof value === "object") {
+
+    // رابط مباشر
+    if (
+      typeof value.url === "string"
+    ) {
+      return value;
+    }
+
+    // مسار الملف
+    if (
+      typeof value.path === "string"
+    ) {
+      return value;
+    }
+
+    // Array
+    if (Array.isArray(value)) {
+      for (
+        const item of value
+      ) {
+        const found =
+          findAudioFile(item);
+
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    // البحث داخل Object
+    for (
+      const key of Object.keys(value)
+    ) {
+      const found =
+        findAudioFile(
+          value[key]
+        );
+
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return null;
+}
+
+
+// =====================================================
+// تحميل الصوت
+// =====================================================
+
+async function downloadAudio(
+  baseUrl,
+  audio
+) {
+  let audioUrl = null;
+
+  // =========================================
+  // رابط مباشر
+  // =========================================
+
+  if (
+    audio.url &&
+    typeof audio.url === "string"
+  ) {
+    audioUrl =
+      audio.url;
+  }
+
+  // =========================================
+  // Path
+  // =========================================
+
+  else if (
+    audio.path &&
+    typeof audio.path === "string"
+  ) {
+    if (
+      audio.path.startsWith(
+        "http://"
+      ) ||
+      audio.path.startsWith(
+        "https://"
+      )
+    ) {
+      audioUrl =
+        audio.path;
+    } else {
+      audioUrl =
+        `${baseUrl}/gradio_api/file=` +
+        encodeURIComponent(
+          audio.path
+        );
+    }
+  }
+
+  if (!audioUrl) {
+    return null;
+  }
+
+  const response =
+    await fetch(audioUrl);
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return await response.arrayBuffer();
+}
+
+
+// =====================================================
+// تنظيف النص
+// =====================================================
+
+function normalizeText(
+  text,
+  language
+) {
+  let result =
+    text
+      .trim()
+      .slice(0, 300);
+
+  // =========================================
+  // English
+  // =========================================
+
+  if (language === "en") {
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([!?.,:;])/g,
+          "$1"
+        )
+        .replace(
+          /([!?.,:;])(?=[A-Za-z])/g,
+          "$1 "
+        );
+  }
+
+  // =========================================
+  // Arabic
+  // =========================================
+
+  if (language === "ar") {
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([،؛؟!.,])/g,
+          "$1"
+        );
+  }
+
+  // =========================================
+  // Japanese
+  // =========================================
+
+  if (language === "ja") {
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([。、！？])/g,
+          "$1"
+        );
+  }
+
+  return result;
+}
+
+
+// =====================================================
+// JSON Response
+// =====================================================
+
+function json(
+  data,
+  status = 200
+) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        "Content-Type":
+          "application/json; charset=utf-8",
+
+        "Access-Control-Allow-Origin":
+          "*"
+      }
+    }
+  );
 }tring"
     ) {
       return value;
