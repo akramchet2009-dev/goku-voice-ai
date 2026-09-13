@@ -4,20 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Goku Voice AI</title>
+  <title>🎙️ Goku Voice AI</title>
 
   <style>
     * {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
     body {
-      margin: 0;
+      font-family:
+        Arial,
+        Tahoma,
+        sans-serif;
+
+      background:
+        radial-gradient(circle at top, #202b45 0%, #0b1020 45%, #050812 100%);
+
+      color: #fff;
       min-height: 100vh;
-      font-family: Arial, sans-serif;
-      background: #111827;
-      color: white;
-      padding: 20px;
+      padding: 18px;
     }
 
     .container {
@@ -26,209 +33,440 @@
       margin: auto;
     }
 
-    .title {
+    .header {
       text-align: center;
-      margin-bottom: 25px;
+      margin-bottom: 22px;
     }
 
-    .title h1 {
-      margin: 0;
-      font-size: 30px;
+    .logo {
+      font-size: 48px;
+      margin-bottom: 8px;
     }
 
-    .title p {
-      color: #aeb7c7;
-      margin-top: 8px;
+    h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #aeb8cf;
+      font-size: 14px;
+      line-height: 1.6;
     }
 
     .card {
-      background: #1f2937;
-      border-radius: 18px;
-      padding: 20px;
+      background: rgba(18, 25, 43, 0.94);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 18px;
       margin-bottom: 16px;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.25);
+    }
+
+    .section-title {
+      font-size: 17px;
+      font-weight: bold;
+      margin-bottom: 12px;
     }
 
     label {
       display: block;
       margin-bottom: 8px;
-      font-weight: bold;
+      font-size: 14px;
+      color: #dce3f2;
     }
 
     textarea,
     select,
     input[type="file"] {
       width: 100%;
-      border: 1px solid #374151;
-      background: #111827;
+      border: 1px solid #34405d;
+      background: #0c1324;
       color: white;
-      border-radius: 12px;
+      border-radius: 13px;
       padding: 13px;
-      font-size: 16px;
+      outline: none;
+      font-size: 15px;
     }
 
     textarea {
-      min-height: 130px;
+      min-height: 150px;
       resize: vertical;
+      line-height: 1.7;
+    }
+
+    textarea:focus,
+    select:focus,
+    input[type="file"]:focus {
+      border-color: #5b8cff;
+    }
+
+    .counter {
+      text-align: left;
+      color: #8f9bb5;
+      font-size: 12px;
+      margin-top: 6px;
+      direction: ltr;
     }
 
     .field {
       margin-bottom: 18px;
     }
 
-    .hint {
-      color: #9ca3af;
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    .file-box {
+      border: 1px dashed #465575;
+      border-radius: 14px;
+      padding: 14px;
+      background: #0a1120;
+    }
+
+    input[type="file"] {
+      padding: 10px;
+      border: none;
+      background: transparent;
+    }
+
+    .file-name {
+      color: #8fa8d8;
       font-size: 13px;
+      margin-top: 8px;
+      word-break: break-word;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-row input {
+      width: 19px;
+      height: 19px;
+      accent-color: #5b8cff;
+    }
+
+    .emotion-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .emotion-option {
+      position: relative;
+    }
+
+    .emotion-option input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .emotion-label {
+      display: block;
+      padding: 12px 8px;
+      text-align: center;
+      border: 1px solid #34405d;
+      border-radius: 12px;
+      background: #0b1324;
+      color: #cbd4e7;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .emotion-option input:checked + .emotion-label {
+      border-color: #638fff;
+      background: #18284d;
+      color: white;
+      box-shadow: 0 0 0 1px #638fff inset;
+    }
+
+    .range-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .range-value {
+      color: #78a0ff;
+      font-weight: bold;
+      direction: ltr;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #5b8cff;
+      cursor: pointer;
+    }
+
+    .range-hint {
+      color: #8490a8;
+      font-size: 12px;
       margin-top: 7px;
       line-height: 1.5;
     }
 
-    button {
+    .generate-btn {
       width: 100%;
       border: none;
-      border-radius: 13px;
+      border-radius: 15px;
       padding: 15px;
+      background: linear-gradient(135deg, #557cff, #7657ff);
+      color: white;
       font-size: 17px;
       font-weight: bold;
       cursor: pointer;
-      background: #f59e0b;
-      color: #111827;
+      transition: 0.2s;
+      box-shadow: 0 8px 22px rgba(76, 105, 255, 0.25);
     }
 
-    button:disabled {
-      opacity: 0.6;
+    .generate-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .generate-btn:active {
+      transform: translateY(1px);
+    }
+
+    .generate-btn:disabled {
+      opacity: 0.55;
       cursor: not-allowed;
+      transform: none;
     }
 
-    #status {
-      text-align: center;
-      margin-top: 15px;
-      line-height: 1.6;
-      color: #d1d5db;
-    }
-
-    #audioBox {
+    .status {
       display: none;
-      margin-top: 18px;
+      margin-top: 15px;
+      padding: 13px;
+      border-radius: 12px;
+      background: #111b31;
+      color: #b9c7e5;
+      font-size: 14px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.error {
+      background: #351720;
+      color: #ffb8c2;
+      border: 1px solid #73303c;
+    }
+
+    .status.success {
+      background: #122c25;
+      color: #a9ead4;
+      border: 1px solid #245e4d;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 3px solid rgba(255,255,255,0.25);
+      border-top-color: white;
+      border-radius: 50%;
+      display: inline-block;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .result {
+      display: none;
+    }
+
+    .result.show {
+      display: block;
     }
 
     audio {
       width: 100%;
+      margin-top: 8px;
     }
 
-    #downloadLink {
+    .download-btn {
       display: block;
       text-align: center;
-      margin-top: 12px;
-      padding: 12px;
-      border-radius: 12px;
-      background: #374151;
-      color: white;
       text-decoration: none;
+      color: white;
+      background: #263657;
+      border: 1px solid #3c4c70;
+      padding: 13px;
+      border-radius: 12px;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
+    .download-btn:hover {
+      background: #304267;
     }
 
     .warning {
+      margin-top: 15px;
+      padding: 12px;
+      background: #281f0d;
+      border: 1px solid #5b471c;
+      color: #e7d39a;
+      border-radius: 12px;
       font-size: 12px;
-      color: #9ca3af;
+      line-height: 1.7;
       text-align: center;
+    }
+
+    .footer {
+      text-align: center;
+      color: #68748e;
+      font-size: 11px;
+      margin-top: 18px;
       line-height: 1.6;
-      margin-top: 20px;
     }
 
-    .check {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 10px;
-      color: #d1d5db;
-      font-size: 14px;
+    .hidden {
+      display: none !important;
     }
 
-    .check input {
-      width: 18px;
-      height: 18px;
+    @media (max-width: 420px) {
+      body {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 14px;
+        border-radius: 17px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .logo {
+        font-size: 42px;
+      }
     }
   </style>
 </head>
 
 <body>
 
-<div class="container">
+  <div class="container">
 
-  <div class="title">
-    <h1>🎙️ Goku Voice AI</h1>
-    <p>تحويل النص إلى كلام باستخدام عينة صوتية</p>
-  </div>
+    <!-- HEADER -->
+    <div class="header">
+      <div class="logo">🎙️</div>
+      <h1>Goku Voice AI</h1>
+      <div class="subtitle">
+        تحويل النص إلى كلام باستخدام عينة صوتية
+      </div>
+    </div>
 
 
-  <!-- النص -->
-  <div class="card">
+    <!-- TEXT -->
+    <div class="card">
 
-    <div class="field">
-
-      <label for="text">
+      <div class="section-title">
         📝 النص
-      </label>
+      </div>
 
-      <textarea
-        id="text"
-        maxlength="300"
-        placeholder="اكتب النص الذي تريد تحويله إلى صوت..."
-      ></textarea>
+      <div class="field">
 
-      <div class="hint">
-        الحد الأقصى 300 حرف.
+        <label for="text">
+          اكتب النص الذي تريد تحويله إلى صوت
+        </label>
+
+        <textarea
+          id="text"
+          maxlength="300"
+          placeholder="اكتب النص هنا..."
+        ></textarea>
+
+        <div class="counter">
+          <span id="counter">0</span> / 300
+        </div>
+
+      </div>
+
+
+      <!-- LANGUAGE -->
+
+      <div class="field">
+
+        <label for="language">
+          🌐 اللغة
+        </label>
+
+        <select id="language">
+
+          <option value="en" selected>
+            🇺🇸 English
+          </option>
+
+          <option value="ar">
+            🇸🇦 العربية
+          </option>
+
+          <option value="ja">
+            🇯🇵 日本語
+          </option>
+
+        </select>
+
       </div>
 
     </div>
 
 
-    <!-- اللغة -->
-    <div class="field">
+    <!-- VOICE -->
+    <div class="card">
 
-      <label for="language">
-        🌍 اللغة
-      </label>
-
-      <select id="language">
-
-        <option value="ar">
-          🇸🇦 العربية
-        </option>
-
-        <option value="en" selected>
-          🇺🇸 English
-        </option>
-
-        <option value="ja">
-          🇯🇵 日本語
-        </option>
-
-      </select>
-
-    </div>
-
-
-    <!-- الصوت -->
-    <div class="field">
-
-      <label for="voice">
+      <div class="section-title">
         🎤 عينة الصوت
-      </label>
+      </div>
 
-      <input
-        id="voice"
-        type="file"
-        accept="audio/*"
-      >
+      <div class="field">
 
-      <div class="hint">
-        استخدم عينة واضحة قدر الإمكان، ويفضل أن تكون بدون موسيقى أو أصوات أشخاص آخرين.
+        <label for="voice">
+          ارفع عينة صوتية واضحة
+        </label>
+
+        <div class="file-box">
+
+          <input
+            type="file"
+            id="voice"
+            accept="audio/*"
+          >
+
+          <div
+            id="fileName"
+            class="file-name"
+          >
+            لم يتم اختيار ملف
+          </div>
+
+        </div>
+
       </div>
 
 
-      <!-- تنظيف الصوت -->
-      <label class="check">
+      <!-- CLEAN AUDIO -->
+
+      <label class="checkbox-row">
 
         <input
           type="checkbox"
@@ -236,678 +474,675 @@
           checked
         >
 
-        🧹 تنظيف عينة الصوت من الضجيج
+        <span>
+          🧹 تنظيف عينة الصوت بالذكاء الاصطناعي
+        </span>
 
       </label>
 
-      <div class="hint">
-        سيتم تقليل الضجيج منخفض التردد مثل الرياح والاهتزازات قبل إرسال العينة.
+    </div>
+
+
+    <!-- EMOTION -->
+    <div class="card">
+
+      <div class="section-title">
+        🎭 أسلوب الأداء
+      </div>
+
+      <div class="field">
+
+        <label>
+          اختر طريقة أداء الصوت
+        </label>
+
+        <div class="emotion-grid">
+
+          <div class="emotion-option">
+            <input
+              type="radio"
+              name="emotion"
+              id="emotion-neutral"
+              value="neutral"
+              checked
+            >
+
+            <label
+              class="emotion-label"
+              for="emotion-neutral"
+            >
+              😐 عادي
+            </label>
+          </div>
+
+
+          <div class="emotion-option">
+            <input
+              type="radio"
+              name="emotion"
+              id="emotion-happy"
+              value="happy"
+            >
+
+            <label
+              class="emotion-label"
+              for="emotion-happy"
+            >
+              😄 سعيد
+            </label>
+          </div>
+
+
+          <div class="emotion-option">
+            <input
+              type="radio"
+              name="emotion"
+              id="emotion-angry"
+              value="angry"
+            >
+
+            <label
+              class="emotion-label"
+              for="emotion-angry"
+            >
+              😡 غاضب
+            </label>
+          </div>
+
+
+          <div class="emotion-option">
+            <input
+              type="radio"
+              name="emotion"
+              id="emotion-sad"
+              value="sad"
+            >
+
+            <label
+              class="emotion-label"
+              for="emotion-sad"
+            >
+              😢 حزين
+            </label>
+          </div>
+
+
+          <div class="emotion-option">
+            <input
+              type="radio"
+              name="emotion"
+              id="emotion-excited"
+              value="excited"
+            >
+
+            <label
+              class="emotion-label"
+              for="emotion-excited"
+            >
+              🔥 حماسي
+            </label>
+          </div>
+
+
+          <div class="emotion-option">
+            <input
+              type="radio"
+              name="emotion"
+              id="emotion-calm"
+              value="calm"
+            >
+
+            <label
+              class="emotion-label"
+              for="emotion-calm"
+            >
+              😌 هادئ
+            </label>
+          </div>
+
+
+          <div class="emotion-option">
+            <input
+              type="radio"
+              name="emotion"
+              id="emotion-scared"
+              value="scared"
+            >
+
+            <label
+              class="emotion-label"
+              for="emotion-scared"
+            >
+              😨 خائف
+            </label>
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- STRENGTH -->
+
+      <div class="field">
+
+        <div class="range-header">
+
+          <label
+            for="emotionStrength"
+            style="margin:0;"
+          >
+            🎚️ قوة التعبير
+          </label>
+
+          <span
+            class="range-value"
+            id="emotionStrengthValue"
+          >
+            50%
+          </span>
+
+        </div>
+
+        <input
+          type="range"
+          id="emotionStrength"
+          min="0"
+          max="100"
+          value="50"
+        >
+
+        <div class="range-hint">
+          كلما رفعت القوة أصبح الأداء أكثر تعبيرًا.
+          التأثير يعتمد على نموذج الصوت وقد يختلف حسب العينة.
+        </div>
+
       </div>
 
     </div>
 
 
-    <button
-      id="generateButton"
-      onclick="generateVoice()"
+    <!-- GENERATE -->
+    <div class="card">
+
+      <button
+        id="generateBtn"
+        class="generate-btn"
+        onclick="generateVoice()"
+      >
+        🔊 توليد الصوت
+      </button>
+
+      <div
+        id="status"
+        class="status"
+      ></div>
+
+    </div>
+
+
+    <!-- RESULT -->
+    <div
+      id="result"
+      class="card result"
     >
-      🎙️ إنشاء الصوت
-    </button>
 
-    <div id="status"></div>
+      <div class="section-title">
+        🎧 الصوت الناتج
+      </div>
+
+      <audio
+        id="audioPlayer"
+        controls
+      ></audio>
+
+      <a
+        id="downloadLink"
+        class="download-btn"
+        download="goku-voice.wav"
+      >
+        ⬇️ تحميل الصوت
+      </a>
+
+    </div>
+
+
+    <!-- WARNING -->
+    <div class="warning">
+      ⚠️ استخدم فقط عينات صوتية لديك الحق أو الإذن باستخدامها.
+    </div>
+
+
+    <div class="footer">
+      Goku Voice AI<br>
+      AI Voice Generation
+    </div>
 
   </div>
 
 
-  <!-- النتيجة -->
-  <div
-    class="card"
-    id="audioBox"
-  >
+  <script>
 
-    <label>
-      🔊 الصوت الناتج
-    </label>
+    /*
+     * ==========================================
+     * ELEMENTS
+     * ==========================================
+     */
 
-    <audio
-      id="audioPlayer"
-      controls
-    ></audio>
+    const textInput =
+      document.getElementById("text");
 
-    <a
-      id="downloadLink"
-      href="#"
-      download="goku-voice.wav"
-    >
-      ⬇️ تحميل الصوت
-    </a>
+    const languageInput =
+      document.getElementById("language");
 
-  </div>
+    const voiceInput =
+      document.getElementById("voice");
 
+    const cleanAudioInput =
+      document.getElementById("cleanAudio");
 
-  <div class="warning">
-    استخدم فقط عينات صوتية لديك الحق أو الإذن باستخدامها.
-  </div>
+    const generateBtn =
+      document.getElementById("generateBtn");
 
-</div>
+    const statusBox =
+      document.getElementById("status");
 
+    const resultBox =
+      document.getElementById("result");
 
-<script>
+    const audioPlayer =
+      document.getElementById("audioPlayer");
 
-/* =====================================================
-   تنظيف عينة الصوت
-   ===================================================== */
+    const downloadLink =
+      document.getElementById("downloadLink");
 
-async function cleanVoiceFile(file) {
+    const counter =
+      document.getElementById("counter");
 
-  const arrayBuffer =
-    await file.arrayBuffer();
+    const fileName =
+      document.getElementById("fileName");
 
-  const AudioContext =
-    window.AudioContext ||
-    window.webkitAudioContext;
+    const emotionStrength =
+      document.getElementById("emotionStrength");
 
-  if (!AudioContext) {
-    return file;
-  }
+    const emotionStrengthValue =
+      document.getElementById("emotionStrengthValue");
 
-  const audioContext =
-    new AudioContext();
 
+    /*
+     * ==========================================
+     * TEXT COUNTER
+     * ==========================================
+     */
 
-  const audioBuffer =
-    await audioContext.decodeAudioData(
-      arrayBuffer
-    );
+    textInput.addEventListener("input", () => {
 
+      counter.textContent =
+        textInput.value.length;
 
-  const sampleRate =
-    audioBuffer.sampleRate;
+    });
 
-  const channels =
-    audioBuffer.numberOfChannels;
 
-  const length =
-    audioBuffer.length;
+    /*
+     * ==========================================
+     * FILE NAME
+     * ==========================================
+     */
 
+    voiceInput.addEventListener("change", () => {
 
-  const offlineContext =
-    new OfflineAudioContext(
-      channels,
-      length,
-      sampleRate
-    );
+      if (voiceInput.files.length > 0) {
 
+        fileName.textContent =
+          "🎵 " + voiceInput.files[0].name;
 
-  const source =
-    offlineContext.createBufferSource();
+      } else {
 
-  source.buffer =
-    audioBuffer;
+        fileName.textContent =
+          "لم يتم اختيار ملف";
 
+      }
 
-  /*
-   * فلتر عالي التمرير
-   *
-   * يقلل:
-   * - الرياح
-   * - الاهتزاز
-   * - الضجيج منخفض التردد
-   */
+    });
 
-  const highPass =
-    offlineContext.createBiquadFilter();
 
-  highPass.type =
-    "highpass";
+    /*
+     * ==========================================
+     * EMOTION SLIDER
+     * ==========================================
+     */
 
-  highPass.frequency.value =
-    120;
+    emotionStrength.addEventListener("input", () => {
 
-  highPass.Q.value =
-    0.7;
+      emotionStrengthValue.textContent =
+        emotionStrength.value + "%";
 
+    });
 
-  /*
-   * فلتر منخفض التمرير
-   *
-   * يساعد على تقليل بعض الضجيج
-   * عالي التردد.
-   */
 
-  const lowPass =
-    offlineContext.createBiquadFilter();
+    /*
+     * ==========================================
+     * GET EMOTION
+     * ==========================================
+     */
 
-  lowPass.type =
-    "lowpass";
+    function getSelectedEmotion() {
 
-  lowPass.frequency.value =
-    11000;
+      const selected =
+        document.querySelector(
+          'input[name="emotion"]:checked'
+        );
 
-  lowPass.Q.value =
-    0.7;
+      return selected
+        ? selected.value
+        : "neutral";
 
+    }
 
-  /*
-   * Compressor
-   *
-   * يجعل مستوى الكلام أكثر ثباتاً.
-   */
 
-  const compressor =
-    offlineContext.createDynamicsCompressor();
+    /*
+     * ==========================================
+     * STATUS
+     * ==========================================
+     */
 
-  compressor.threshold.value =
-    -24;
-
-  compressor.knee.value =
-    18;
-
-  compressor.ratio.value =
-    3;
-
-  compressor.attack.value =
-    0.003;
-
-  compressor.release.value =
-    0.25;
-
-
-  source
-    .connect(highPass)
-    .connect(lowPass)
-    .connect(compressor)
-    .connect(offlineContext.destination);
-
-
-  source.start(0);
-
-
-  const rendered =
-    await offlineContext.startRendering();
-
-
-  await audioContext.close();
-
-
-  return audioBufferToWav(
-    rendered
-  );
-}
-
-
-/* =====================================================
-   تحويل AudioBuffer إلى WAV
-   ===================================================== */
-
-function audioBufferToWav(buffer) {
-
-  const numberOfChannels =
-    buffer.numberOfChannels;
-
-  const sampleRate =
-    buffer.sampleRate;
-
-  const bitDepth =
-    16;
-
-  const blockAlign =
-    numberOfChannels *
-    bitDepth / 8;
-
-  const byteRate =
-    sampleRate *
-    blockAlign;
-
-  const dataSize =
-    buffer.length *
-    blockAlign;
-
-
-  const arrayBuffer =
-    new ArrayBuffer(
-      44 + dataSize
-    );
-
-  const view =
-    new DataView(
-      arrayBuffer
-    );
-
-
-  writeString(
-    view,
-    0,
-    "RIFF"
-  );
-
-  view.setUint32(
-    4,
-    36 + dataSize,
-    true
-  );
-
-  writeString(
-    view,
-    8,
-    "WAVE"
-  );
-
-  writeString(
-    view,
-    12,
-    "fmt "
-  );
-
-  view.setUint32(
-    16,
-    16,
-    true
-  );
-
-  view.setUint16(
-    20,
-    1,
-    true
-  );
-
-  view.setUint16(
-    22,
-    numberOfChannels,
-    true
-  );
-
-  view.setUint32(
-    24,
-    sampleRate,
-    true
-  );
-
-  view.setUint32(
-    28,
-    byteRate,
-    true
-  );
-
-  view.setUint16(
-    32,
-    blockAlign,
-    true
-  );
-
-  view.setUint16(
-    34,
-    bitDepth,
-    true
-  );
-
-  writeString(
-    view,
-    36,
-    "data"
-  );
-
-  view.setUint32(
-    40,
-    dataSize,
-    true
-  );
-
-
-  const channelData = [];
-
-  for (
-    let channel = 0;
-    channel < numberOfChannels;
-    channel++
-  ) {
-
-    channelData.push(
-      buffer.getChannelData(
-        channel
-      )
-    );
-
-  }
-
-
-  let offset = 44;
-
-
-  for (
-    let i = 0;
-    i < buffer.length;
-    i++
-  ) {
-
-    for (
-      let channel = 0;
-      channel < numberOfChannels;
-      channel++
+    function showStatus(
+      message,
+      type = ""
     ) {
 
-      let sample =
-        channelData[channel][i];
+      statusBox.className =
+        "status show " + type;
 
-
-      sample =
-        Math.max(
-          -1,
-          Math.min(
-            1,
-            sample
-          )
-        );
-
-
-      const value =
-        sample < 0
-          ? sample * 0x8000
-          : sample * 0x7FFF;
-
-
-      view.setInt16(
-        offset,
-        value,
-        true
-      );
-
-
-      offset += 2;
+      statusBox.innerHTML =
+        message;
 
     }
 
-  }
 
+    function hideStatus() {
 
-  return new Blob(
-    [arrayBuffer],
-    {
-      type: "audio/wav"
+      statusBox.className =
+        "status";
+
+      statusBox.innerHTML =
+        "";
+
     }
-  );
-}
-
-
-/* =====================================================
-   كتابة WAV
-   ===================================================== */
-
-function writeString(
-  view,
-  offset,
-  string
-) {
-
-  for (
-    let i = 0;
-    i < string.length;
-    i++
-  ) {
-
-    view.setUint8(
-      offset + i,
-      string.charCodeAt(i)
-    );
-
-  }
-
-}
-
-
-/* =====================================================
-   توليد الصوت
-   ===================================================== */
-
-async function generateVoice() {
-
-  const text =
-    document
-      .getElementById("text")
-      .value
-      .trim();
-
-
-  const voiceInput =
-    document.getElementById(
-      "voice"
-    );
-
-
-  const language =
-    document.getElementById(
-      "language"
-    ).value;
-
-
-  const cleanAudio =
-    document.getElementById(
-      "cleanAudio"
-    ).checked;
-
-
-  const status =
-    document.getElementById(
-      "status"
-    );
-
-
-  const audioBox =
-    document.getElementById(
-      "audioBox"
-    );
-
-
-  const audioPlayer =
-    document.getElementById(
-      "audioPlayer"
-    );
-
-
-  const downloadLink =
-    document.getElementById(
-      "downloadLink"
-    );
-
-
-  const button =
-    document.getElementById(
-      "generateButton"
-    );
-
-
-  /* التحقق من النص */
-
-  if (!text) {
-
-    status.textContent =
-      "⚠️ اكتب نصاً أولاً.";
-
-    return;
-  }
-
-
-  /* التحقق من الصوت */
-
-  if (
-    !voiceInput.files ||
-    !voiceInput.files[0]
-  ) {
-
-    status.textContent =
-      "⚠️ اختر عينة صوتية أولاً.";
-
-    return;
-  }
-
-
-  try {
-
-    button.disabled =
-      true;
-
-
-    audioBox.style.display =
-      "none";
-
-
-    const originalVoice =
-      voiceInput.files[0];
-
-
-    let voiceToSend =
-      originalVoice;
 
 
     /*
-     * تنظيف الصوت
+     * ==========================================
+     * BUTTON LOADING
+     * ==========================================
      */
 
-    if (cleanAudio) {
+    function setLoading(loading) {
 
-      status.textContent =
-        "🧹 جارٍ تنظيف عينة الصوت...";
+      generateBtn.disabled =
+        loading;
 
+      if (loading) {
 
-      voiceToSend =
-        await cleanVoiceFile(
-          originalVoice
-        );
+        generateBtn.innerHTML =
+          '<span class="spinner"></span> جاري توليد الصوت...';
+
+      } else {
+
+        generateBtn.innerHTML =
+          "🔊 توليد الصوت";
+
+      }
 
     }
 
 
-    status.textContent =
-      "🎙️ جارٍ إنشاء الصوت...";
+    /*
+     * ==========================================
+     * BASIC VALIDATION
+     * ==========================================
+     */
+
+    function validateForm() {
+
+      const text =
+        textInput.value.trim();
+
+      if (!text) {
+
+        showStatus(
+          "❌ اكتب نصًا أولًا.",
+          "error"
+        );
+
+        textInput.focus();
+
+        return false;
+
+      }
 
 
-    const formData =
-      new FormData();
+      if (text.length > 300) {
+
+        showStatus(
+          "❌ النص أطول من الحد المسموح وهو 300 حرف.",
+          "error"
+        );
+
+        return false;
+
+      }
 
 
-    formData.append(
-      "text",
-      text
-    );
+      if (!voiceInput.files.length) {
+
+        showStatus(
+          "❌ اختر عينة صوتية أولًا.",
+          "error"
+        );
+
+        return false;
+
+      }
 
 
-    formData.append(
-      "language",
-      language
-    );
+      const file =
+        voiceInput.files[0];
 
 
-    formData.append(
-      "voice",
-      voiceToSend,
-      "cleaned_voice.wav"
-    );
+      if (!file.type.startsWith("audio/")) {
+
+        showStatus(
+          "❌ الملف المختار ليس ملفًا صوتيًا صالحًا.",
+          "error"
+        );
+
+        return false;
+
+      }
+
+
+      return true;
+
+    }
 
 
     /*
-     * إرسال الطلب إلى Worker
+     * ==========================================
+     * OPTIONAL BROWSER AUDIO CLEANING
+     * ==========================================
+     *
+     * This is only a light preprocessing step.
+     * The Worker performs the AI denoising.
      */
 
-    const response =
-      await fetch(
-        "/api/generate",
-        {
-          method: "POST",
-          body: formData
-        }
-      );
-
-
-    if (!response.ok) {
-
-      let errorMessage =
-        "فشل إنشاء الصوت.";
-
+    async function cleanAudioInBrowser(file) {
 
       try {
 
-        const error =
-          await response.json();
+        const arrayBuffer =
+          await file.arrayBuffer();
 
+        const AudioCtx =
+          window.OfflineAudioContext ||
+          window.webkitOfflineAudioContext;
 
-        if (error.error) {
+        if (!AudioCtx) {
 
-          errorMessage =
-            error.error;
+          return file;
 
         }
 
-      } catch (_) {}
+        const tempContext =
+          new AudioContext();
+
+        const decoded =
+          await tempContext.decodeAudioData(
+            arrayBuffer.slice(0)
+          );
+
+        await tempContext.close();
 
 
-      throw new Error(
-        errorMessage
-      );
+        const duration =
+          decoded.duration;
+
+        const sampleRate =
+          decoded.sampleRate;
+
+
+        const offline =
+          new AudioCtx(
+            decoded.numberOfChannels,
+            Math.ceil(
+              duration * sampleRate
+            ),
+            sampleRate
+          );
+
+
+        const source =
+          offline.createBufferSource();
+
+        source.buffer =
+          decoded;
+
+
+        /*
+         * High pass
+         */
+
+        const highPass =
+          offline.createBiquadFilter();
+
+        highPass.type =
+          "highpass";
+
+        highPass.frequency.value =
+          120;
+
+
+        /*
+         * Low pass
+         */
+
+        const lowPass =
+          offline.createBiquadFilter();
+
+        lowPass.type =
+          "lowpass";
+
+        lowPass.frequency.value =
+          11000;
+
+
+        /*
+         * Compressor
+         */
+
+        const compressor =
+          offline.createDynamicsCompressor();
+
+        compressor.threshold.value =
+          -24;
+
+        compressor.knee.value =
+          18;
+
+        compressor.ratio.value =
+          3;
+
+        compressor.attack.value =
+          0.003;
+
+        compressor.release.value =
+          0.25;
+
+
+        source
+          .connect(highPass)
+          .connect(lowPass)
+          .connect(compressor)
+          .connect(offline.destination);
+
+
+        source.start(0);
+
+
+        const rendered =
+          await offline.startRendering();
+
+
+        /*
+         * Convert AudioBuffer to WAV
+         */
+
+        const wav =
+          audioBufferToWav(rendered);
+
+
+        return new File(
+          [wav],
+          "clean_voice.wav",
+          {
+            type: "audio/wav"
+          }
+        );
+
+
+      } catch (error) {
+
+        console.warn(
+          "Browser cleaning failed:",
+          error
+        );
+
+        return file;
+
+      }
 
     }
 
 
     /*
-     * الحصول على الصوت الناتج
+     * ==========================================
+     * AUDIO BUFFER -> WAV
+     * ==========================================
      */
 
-    const audioBlob =
-      await response.blob();
+    function audioBufferToWav(buffer) {
+
+      const numberOfChannels =
+        buffer.numberOfChannels;
+
+      const sampleRate =
+        buffer.sampleRate;
+
+      const format =
+        1;
+
+      const bitDepth =
+        16;
 
 
-    const audioURL =
-      URL.createObjectURL(
-        audioBlob
-      );
-
-
-    /*
-     * تشغيل الصوت
-     */
-
-    audioPlayer.src =
-      audioURL;
-
-
-    /*
-     * رابط التحميل
-     */
-
-    downloadLink.href =
-      audioURL;
-
-
-    audioBox.style.display =
-      "block";
-
-
-    status.textContent =
-      "✅ تم إنشاء الصوت بنجاح!";
-
-
-  } catch (error) {
-
-    console.error(error);
-
-
-    status.textContent =
-      "❌ حدث خطأ: " +
-      (
-        error.message ||
-        "حاول مرة أخرى"
-      );
-
-
-  } finally {
-
-    button.disabled =
-      false;
-
-  }
-
-}
-
-</script>
-
-</body>
-</html>
+      let s
