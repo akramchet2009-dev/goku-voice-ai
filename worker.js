@@ -8,7 +8,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // الصفحة الرئيسية
     if (request.method === "GET" && url.pathname === "/") {
       return new Response("Goku Voice AI is running.", {
         headers: {
@@ -17,7 +16,6 @@ export default {
       });
     }
 
-    // توليد الصوت
     if (
       request.method === "POST" &&
       url.pathname === "/api/generate"
@@ -59,22 +57,18 @@ export default {
         // 1. إزالة الضوضاء من العينة
         // =========================================
 
-        const denoisedVoice =
-          await removeNoise(voice);
+        const denoisedVoice = await removeNoise(voice);
 
         // =========================================
         // 2. رفع العينة النظيفة إلى Chatterbox
         // =========================================
 
-        const chatterboxUpload =
-          new FormData();
+        const chatterboxUpload = new FormData();
 
         chatterboxUpload.append(
           "files",
           new File(
-            [
-              denoisedVoice.bytes
-            ],
+            [denoisedVoice.bytes],
             "clean_voice.wav",
             {
               type: "audio/wav"
@@ -82,14 +76,13 @@ export default {
           )
         );
 
-        const uploadResponse =
-          await fetch(
-            `${CHATTERBOX_SPACE}/gradio_api/upload`,
-            {
-              method: "POST",
-              body: chatterboxUpload
-            }
-          );
+        const uploadResponse = await fetch(
+          `${CHATTERBOX_SPACE}/gradio_api/upload`,
+          {
+            method: "POST",
+            body: chatterboxUpload
+          }
+        );
 
         if (!uploadResponse.ok) {
           throw new Error(
@@ -97,8 +90,7 @@ export default {
           );
         }
 
-        const uploaded =
-          await uploadResponse.json();
+        const uploaded = await uploadResponse.json();
 
         if (
           !Array.isArray(uploaded) ||
@@ -109,51 +101,46 @@ export default {
           );
         }
 
-        const audioPath =
-          uploaded[0];
+        const audioPath = uploaded[0];
 
         // =========================================
         // 3. بدء توليد الصوت
         // =========================================
 
-        const generateResponse =
-          await fetch(
-            `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
-              body: JSON.stringify({
-                data: [
-                  cleanText,
-                  language,
-                  {
-                    path: audioPath,
-                    meta: {
-                      _type:
-                        "gradio.FileData"
-                    },
-                    orig_name:
-                      "clean_voice.wav"
+        const generateResponse = await fetch(
+          `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              data: [
+                cleanText,
+                language,
+                {
+                  path: audioPath,
+                  meta: {
+                    _type: "gradio.FileData"
                   },
+                  orig_name: "clean_voice.wav"
+                },
 
-                  // exaggeration
-                  0.5,
+                // exaggeration
+                0.5,
 
-                  // temperature
-                  0.75,
+                // temperature
+                0.75,
 
-                  // seed
-                  0,
+                // seed
+                0,
 
-                  // cfg
-                  0.5
-                ]
-              })
-            }
-          );
+                // cfg
+                0.5
+              ]
+            })
+          }
+        );
 
         if (!generateResponse.ok) {
           throw new Error(
@@ -196,12 +183,9 @@ export default {
           {
             status: 200,
             headers: {
-              "Content-Type":
-                "audio/wav",
-              "Cache-Control":
-                "no-store",
-              "Access-Control-Allow-Origin":
-                "*"
+              "Content-Type": "audio/wav",
+              "Cache-Control": "no-store",
+              "Access-Control-Allow-Origin": "*"
             }
           }
         );
@@ -225,7 +209,9 @@ export default {
 
     return new Response(
       "Not Found",
-      { status: 404 }
+      {
+        status: 404
+      }
     );
   }
 };
@@ -246,8 +232,7 @@ async function removeNoise(voice) {
     "files",
     new File(
       [originalBytes],
-      voice.name ||
-        "input_audio",
+      voice.name || "input_audio",
       {
         type:
           voice.type ||
@@ -287,7 +272,7 @@ async function removeNoise(voice) {
     uploaded[0];
 
   // =========================================
-  // بدء عملية إزالة الضوضاء
+  // تشغيل إزالة الضوضاء
   // =========================================
 
   const predictResponse =
@@ -312,16 +297,16 @@ async function removeNoise(voice) {
                 "input_audio"
             },
 
-            // solver
+            // Solver
             "Midpoint",
 
             // NFE
             64,
 
-            // tau
+            // Tau
             0.5,
 
-            // denoising
+            // Denoising
             true
           ]
         })
@@ -344,7 +329,7 @@ async function removeNoise(voice) {
   }
 
   // =========================================
-  // انتظار النتيجة النهائية
+  // انتظار النتيجة
   // =========================================
 
   const cleanAudio =
@@ -409,6 +394,7 @@ async function parseCompletedSSE(
     text.split(/\n\n+/);
 
   for (const block of blocks) {
+
     const eventMatch =
       block.match(
         /(?:^|\n)event:\s*([^\n]+)/i
@@ -419,7 +405,10 @@ async function parseCompletedSSE(
         /(?:^|\n)data:\s*([\s\S]+)/i
       );
 
-    if (!eventMatch || !dataMatch) {
+    if (
+      !eventMatch ||
+      !dataMatch
+    ) {
       continue;
     }
 
@@ -427,10 +416,12 @@ async function parseCompletedSSE(
       eventMatch[1].trim();
 
     const rawData =
-      dataMatch[1]
-        .trim();
+      dataMatch[1].trim();
 
-    // النتيجة النهائية فقط
+    // =========================================
+    // النتيجة النهائية
+    // =========================================
+
     if (eventName === "complete") {
       try {
         const data =
@@ -458,7 +449,10 @@ async function parseCompletedSSE(
       }
     }
 
-    // في حالة حدوث خطأ من الخدمة
+    // =========================================
+    // خطأ من الخدمة
+    // =========================================
+
     if (eventName === "error") {
       let message =
         "خدمة الصوت أعادت خطأ.";
@@ -467,7 +461,10 @@ async function parseCompletedSSE(
         const parsed =
           JSON.parse(rawData);
 
-        if (typeof parsed === "string") {
+        if (
+          typeof parsed ===
+          "string"
+        ) {
           message = parsed;
         }
       } catch {}
@@ -481,7 +478,7 @@ async function parseCompletedSSE(
 
 
 // =====================================================
-// العثور على ملف الصوت داخل النتيجة
+// العثور على ملف الصوت
 // =====================================================
 
 function findAudioFile(value) {
@@ -489,10 +486,10 @@ function findAudioFile(value) {
     return null;
   }
 
-  if (
-    typeof value === "object"
-  ) {
-    // FileData URL
+  // هذا هو التصحيح المهم
+  if (typeof value === "object") {
+
+    // رابط مباشر
     if (
       typeof value.url ===
       "string"
@@ -500,7 +497,7 @@ function findAudioFile(value) {
       return value;
     }
 
-    // FileData path
+    // مسار الملف
     if (
       typeof value.path ===
       "string"
@@ -508,7 +505,7 @@ function findAudioFile(value) {
       return value;
     }
 
-    // Array
+    // إذا كانت Array
     if (Array.isArray(value)) {
       for (
         const item of value
@@ -522,7 +519,7 @@ function findAudioFile(value) {
       }
     }
 
-    // Object
+    // البحث داخل Object
     for (
       const key of Object.keys(value)
     ) {
@@ -551,7 +548,7 @@ async function downloadAudio(
 ) {
   let audioUrl = null;
 
-  // إذا أعادت Gradio رابطًا مباشرًا
+  // رابط مباشر
   if (
     audio.url &&
     typeof audio.url ===
@@ -561,12 +558,13 @@ async function downloadAudio(
       audio.url;
   }
 
-  // إذا أعادت path
+  // مسار ملف
   else if (
     audio.path &&
     typeof audio.path ===
       "string"
   ) {
+
     if (
       audio.path.startsWith(
         "http://"
@@ -662,7 +660,7 @@ function normalizeText(
 
 
 // =====================================================
-// JSON
+// JSON Response
 // =====================================================
 
 function json(
@@ -681,202 +679,4 @@ function json(
       }
     }
   );
-}peof value === "object"
-  ) {
-    // FileData URL
-    if (
-      typeof value.url ===
-      "string"
-    ) {
-      return value;
     }
-
-    // FileData path
-    if (
-      typeof value.path ===
-      "string"
-    ) {
-      return value;
-    }
-
-    // Array
-    if (Array.isArray(value)) {
-      for (
-        const item of value
-      ) {
-        const found =
-          findAudioFile(item);
-
-        if (found) {
-          return found;
-        }
-      }
-    }
-
-    // Object
-    for (
-      const key of Object.keys(value)
-    ) {
-      const found =
-        findAudioFile(
-          value[key]
-        );
-
-      if (found) {
-        return found;
-      }
-    }
-  }
-
-  return null;
-}
-
-
-// =====================================================
-// تحميل ملف الصوت
-// =====================================================
-
-async function downloadAudio(
-  baseUrl,
-  audio
-) {
-  let audioUrl = null;
-
-  // إذا أعادت Gradio رابطًا مباشرًا
-  if (
-    audio.url &&
-    typeof audio.url ===
-      "string"
-  ) {
-    audioUrl =
-      audio.url;
-  }
-
-  // إذا أعادت path
-  else if (
-    audio.path &&
-    typeof audio.path ===
-      "string"
-  ) {
-    if (
-      audio.path.startsWith(
-        "http://"
-      ) ||
-      audio.path.startsWith(
-        "https://"
-      )
-    ) {
-      audioUrl =
-        audio.path;
-    } else {
-      audioUrl =
-        `${baseUrl}/gradio_api/file=` +
-        encodeURIComponent(
-          audio.path
-        );
-    }
-  }
-
-  if (!audioUrl) {
-    return null;
-  }
-
-  const response =
-    await fetch(audioUrl);
-
-  if (!response.ok) {
-    return null;
-  }
-
-  return await response.arrayBuffer();
-}
-
-
-// =====================================================
-// تنظيف النص
-// =====================================================
-
-function normalizeText(
-  text,
-  language
-) {
-  let result =
-    text
-      .trim()
-      .slice(0, 300);
-
-  if (language === "en") {
-    result =
-      result
-        .replace(
-          /\s+/g,
-          " "
-        )
-        .replace(
-          /\s+([!?.,:;])/g,
-          "$1"
-        )
-        .replace(
-          /([!?.,:;])(?=[A-Za-z])/g,
-          "$1 "
-        );
-  }
-
-  if (language === "ar") {
-    result =
-      result
-        .replace(
-          /\s+/g,
-          " "
-        )
-        .replace(
-          /\s+([،؛؟!.,])/g,
-          "$1"
-        );
-  }
-
-  if (language === "ja") {
-    result =
-      result
-        .replace(
-          /\s+/g,
-          " "
-        )
-        .replace(
-          /\s+([。、！？])/g,
-          "$1"
-        );
-  }
-
-  return result;
-}
-
-
-// =====================================================
-// JSON
-// =====================================================
-
-function json(
-  data,
-  status = 200
-) {
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: {
-        "Content-Type":
-          "application/json; charset=utf-8",
-        "Access-Control-Allow-Origin":
-          "*"
-      }
-    }
-  );
-    }     status,
-      headers: {
-        "Content-Type":
-          "application/json; charset=utf-8"
-      }
-    }
-  );
-}
