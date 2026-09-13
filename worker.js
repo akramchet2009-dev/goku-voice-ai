@@ -19,11 +19,11 @@ export default {
       try {
         const form = await request.formData();
 
-        const text = form.get("text");
+        const originalText = form.get("text");
         const language = form.get("language") || "en";
         const voice = form.get("voice");
 
-        if (!text || typeof text !== "string") {
+        if (!originalText || typeof originalText !== "string") {
           return json({ error: "اكتب نصاً أولاً." }, 400);
         }
 
@@ -41,11 +41,52 @@ export default {
           );
         }
 
-        // Chatterbox يحد النص تقريباً إلى 300 حرف
-        const cleanText = text.trim().slice(0, 300);
+        // ------------------------------------------------
+        // تنظيف النص وتحسين علامات الترقيم
+        // ------------------------------------------------
+
+        let cleanText = originalText
+          .replace(/\r?\n+/g, " ")
+          .replace(/[ \t]+/g, " ")
+          .trim();
+
+        // الإنجليزية:
+        // إضافة مسافة بعد ! ? . , : ; إذا كانت مفقودة
+        // مثال:
+        // Hey!it's me!Goku!
+        // يصبح:
+        // Hey! it's me! Goku!
+        if (language === "en") {
+          cleanText = cleanText
+            .replace(/([!?.,:;])([A-Za-z])/g, "$1 $2")
+            .replace(/([A-Za-z])([!?.,:;])/g, "$1$2")
+            .replace(/\s+([!?.,:;])/g, "$1")
+            .replace(/([!?.,:;])\s{2,}/g, "$1 ");
+        }
+
+        // العربية:
+        // لا نضيف علامات أو مسافات غريبة.
+        // فقط نرتب المسافات.
+        if (language === "ar") {
+          cleanText = cleanText
+            .replace(/\s+([،؛؟!.,])/g, "$1")
+            .replace(/([،؛؟!])([^\s])/g, "$1 $2")
+            .replace(/[ \t]+/g, " ")
+            .trim();
+        }
+
+        // الحد الأقصى الرسمي للنص
+        cleanText = cleanText.slice(0, 300);
+
+        if (!cleanText) {
+          return json(
+            { error: "النص فارغ." },
+            400
+          );
+        }
 
         // ------------------------------------------------
-        // 1. رفع عينة الصوت إلى Chatterbox
+        // 1. رفع عينة الصوت
         // ------------------------------------------------
 
         const uploadForm = new FormData();
@@ -53,7 +94,7 @@ export default {
         uploadForm.append(
           "files",
           voice,
-          voice.name || "voice.mp3"
+          voice.name || "voice.wav"
         );
 
         const uploadResponse = await fetch(
@@ -106,6 +147,7 @@ export default {
             headers: {
               "Content-Type": "application/json"
             },
+
             body: JSON.stringify({
               data: [
                 cleanText,
@@ -120,25 +162,28 @@ export default {
                     _type: "gradio.FileData"
                   },
                   orig_name:
-                    voice.name || "voice.mp3"
+                    voice.name || "voice.wav"
                 },
 
+                // ------------------------------------------------
+                // إعدادات Chatterbox
+                // ------------------------------------------------
+
                 // Exaggeration
-                // أقل = كلام أكثر هدوءاً وثباتاً
-                0.35,
+                // القيمة الرسمية المحايدة تقريباً
+                0.50,
 
                 // Temperature
-                // أقل = عشوائية أقل وضجيج/هلوسات أقل
-                0.65,
+                // أقل قليلاً من الافتراضي لتقليل العشوائية
+                0.75,
 
                 // Seed
-                // ثابت للحصول على نتائج أكثر قابلية للتكرار
-                42,
+                // 0 = نتيجة عشوائية جديدة
+                0,
 
-                // CFG
-                // قيمة منخفضة تساعد في بعض حالات
-                // نقل الصوت بين اللغات
-                0.3
+                // CFG / Pace
+                // القيمة الرسمية العامة
+                0.50
               ]
             })
           }
@@ -175,7 +220,7 @@ export default {
         }
 
         // ------------------------------------------------
-        // 3. انتظار نتيجة التوليد
+        // 3. انتظار النتيجة
         // ------------------------------------------------
 
         const resultResponse = await fetch(
@@ -350,4 +395,4 @@ function json(data, status = 200) {
       }
     }
   );
-                }
+}
