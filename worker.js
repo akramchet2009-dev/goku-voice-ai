@@ -8,6 +8,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // الصفحة الرئيسية
     if (request.method === "GET" && url.pathname === "/") {
       return new Response("Goku Voice AI is running.", {
         headers: {
@@ -16,7 +17,11 @@ export default {
       });
     }
 
-    if (request.method === "POST" && url.pathname === "/api/generate") {
+    // توليد الصوت
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/generate"
+    ) {
       try {
         const form = await request.formData();
 
@@ -25,144 +30,187 @@ export default {
         const voice = form.get("voice");
 
         if (!text || typeof text !== "string") {
-          return json({ error: "اكتب نصاً أولاً." }, 400);
+          return json(
+            { error: "اكتب نصاً أولاً." },
+            400
+          );
         }
 
         if (!voice || typeof voice === "string") {
-          return json({ error: "لم يتم إرسال عينة صوتية." }, 400);
+          return json(
+            { error: "لم يتم إرسال عينة صوتية." },
+            400
+          );
         }
 
         if (!["ar", "en", "ja"].includes(language)) {
-          return json({ error: "اللغة غير مدعومة." }, 400);
+          return json(
+            { error: "اللغة غير مدعومة." },
+            400
+          );
         }
 
-        const cleanText = normalizeText(text, language);
+        const cleanText = normalizeText(
+          text,
+          language
+        );
 
-        // ==========================================
-        // 1. إزالة الضوضاء بالذكاء الاصطناعي
-        // ==========================================
+        // =========================================
+        // 1. إزالة الضوضاء من العينة
+        // =========================================
 
-        const denoisedVoice = await removeNoise(voice);
+        const denoisedVoice =
+          await removeNoise(voice);
 
-        // ==========================================
-        // 2. إرسال الصوت النظيف إلى Chatterbox
-        // ==========================================
+        // =========================================
+        // 2. رفع العينة النظيفة إلى Chatterbox
+        // =========================================
 
-        const uploadForm = new FormData();
+        const chatterboxUpload =
+          new FormData();
 
-        uploadForm.append(
+        chatterboxUpload.append(
           "files",
           new File(
-            [denoisedVoice.bytes],
-            denoisedVoice.name || "clean_voice.wav",
+            [
+              denoisedVoice.bytes
+            ],
+            "clean_voice.wav",
             {
               type: "audio/wav"
             }
           )
         );
 
-        const uploadResponse = await fetch(
-          `${CHATTERBOX_SPACE}/gradio_api/upload`,
-          {
-            method: "POST",
-            body: uploadForm
-          }
-        );
+        const uploadResponse =
+          await fetch(
+            `${CHATTERBOX_SPACE}/gradio_api/upload`,
+            {
+              method: "POST",
+              body: chatterboxUpload
+            }
+          );
 
         if (!uploadResponse.ok) {
-          throw new Error("فشل رفع الصوت إلى Chatterbox.");
+          throw new Error(
+            "فشل رفع الصوت إلى Chatterbox."
+          );
         }
 
-        const uploaded = await uploadResponse.json();
+        const uploaded =
+          await uploadResponse.json();
 
-        if (!Array.isArray(uploaded) || !uploaded[0]) {
-          throw new Error("Chatterbox لم يُرجع ملف الصوت.");
+        if (
+          !Array.isArray(uploaded) ||
+          !uploaded[0]
+        ) {
+          throw new Error(
+            "Chatterbox لم يستقبل العينة."
+          );
         }
 
-        const audioPath = uploaded[0];
+        const audioPath =
+          uploaded[0];
 
-        // ==========================================
-        // 3. توليد الصوت
-        // ==========================================
+        // =========================================
+        // 3. بدء توليد الصوت
+        // =========================================
 
-        const generateResponse = await fetch(
-          `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              data: [
-                cleanText,
-                language,
-                {
-                  path: audioPath,
-                  meta: {
-                    _type: "gradio.FileData"
+        const generateResponse =
+          await fetch(
+            `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+              body: JSON.stringify({
+                data: [
+                  cleanText,
+                  language,
+                  {
+                    path: audioPath,
+                    meta: {
+                      _type:
+                        "gradio.FileData"
+                    },
+                    orig_name:
+                      "clean_voice.wav"
                   },
-                  orig_name: "clean_voice.wav"
-                },
 
-                // إعدادات Chatterbox
-                0.5, // exaggeration
-                0.75, // temperature
-                0, // seed
-                0.5 // cfg
-              ]
-            })
-          }
-        );
+                  // exaggeration
+                  0.5,
+
+                  // temperature
+                  0.75,
+
+                  // seed
+                  0,
+
+                  // cfg
+                  0.5
+                ]
+              })
+            }
+          );
 
         if (!generateResponse.ok) {
-          throw new Error("فشل بدء توليد الصوت.");
+          throw new Error(
+            "فشل بدء توليد الصوت."
+          );
         }
 
-        const generateData = await generateResponse.json();
+        const generateData =
+          await generateResponse.json();
 
         if (!generateData.event_id) {
-          throw new Error("لم يتم الحصول على event_id.");
+          throw new Error(
+            "لم يتم الحصول على event_id."
+          );
         }
 
-        // ==========================================
-        // 4. انتظار نتيجة Chatterbox
-        // ==========================================
+        // =========================================
+        // 4. انتظار النتيجة النهائية
+        // =========================================
 
-        const resultResponse = await fetch(
-          `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio/${generateData.event_id}`
-        );
+        const generatedAudio =
+          await waitForSSEAudio(
+            CHATTERBOX_SPACE,
+            "generate_tts_audio",
+            generateData.event_id
+          );
 
-        if (!resultResponse.ok) {
-          throw new Error("فشل الحصول على نتيجة الصوت.");
+        if (!generatedAudio) {
+          throw new Error(
+            "لم يتم العثور على الصوت الناتج."
+          );
         }
 
-        const resultText = await resultResponse.text();
+        // =========================================
+        // 5. إرسال الصوت إلى المتصفح
+        // =========================================
 
-        const audioResult = extractAudioFromSSE(resultText);
-
-        if (!audioResult) {
-          throw new Error("لم يتم العثور على الصوت الناتج.");
-        }
-
-        const finalAudio = await fetchAudioResult(
-          CHATTERBOX_SPACE,
-          audioResult
-        );
-
-        if (!finalAudio) {
-          throw new Error("تعذر تحميل الصوت الناتج.");
-        }
-
-        return new Response(finalAudio, {
-          status: 200,
-          headers: {
-            "Content-Type": "audio/wav",
-            "Cache-Control": "no-store"
+        return new Response(
+          generatedAudio,
+          {
+            status: 200,
+            headers: {
+              "Content-Type":
+                "audio/wav",
+              "Cache-Control":
+                "no-store",
+              "Access-Control-Allow-Origin":
+                "*"
+            }
           }
-        });
+        );
 
       } catch (error) {
-        console.error(error);
+        console.error(
+          "GENERATION ERROR:",
+          error
+        );
 
         return json(
           {
@@ -175,114 +223,141 @@ export default {
       }
     }
 
-    return new Response("Not Found", {
-      status: 404
-    });
+    return new Response(
+      "Not Found",
+      { status: 404 }
+    );
   }
 };
 
 
-// ==================================================
-// إزالة الضوضاء باستخدام Resemble Enhance
-// ==================================================
+// =====================================================
+// إزالة الضوضاء
+// =====================================================
 
 async function removeNoise(voice) {
-  const uploadForm = new FormData();
+  const originalBytes =
+    await voice.arrayBuffer();
+
+  const uploadForm =
+    new FormData();
 
   uploadForm.append(
     "files",
     new File(
-      [await voice.arrayBuffer()],
-      voice.name || "input_audio",
+      [originalBytes],
+      voice.name ||
+        "input_audio",
       {
-        type: voice.type || "audio/wav"
+        type:
+          voice.type ||
+          "audio/wav"
       }
     )
   );
 
-  const uploadResponse = await fetch(
-    `${DENOISE_SPACE}/gradio_api/upload`,
-    {
-      method: "POST",
-      body: uploadForm
-    }
-  );
+  const uploadResponse =
+    await fetch(
+      `${DENOISE_SPACE}/gradio_api/upload`,
+      {
+        method: "POST",
+        body: uploadForm
+      }
+    );
 
   if (!uploadResponse.ok) {
-    throw new Error("فشل رفع العينة إلى مزيل الضوضاء.");
+    throw new Error(
+      "فشل رفع العينة إلى مزيل الضوضاء."
+    );
   }
 
-  const uploaded = await uploadResponse.json();
+  const uploaded =
+    await uploadResponse.json();
 
-  if (!Array.isArray(uploaded) || !uploaded[0]) {
-    throw new Error("مزيل الضوضاء لم يستقبل العينة.");
+  if (
+    !Array.isArray(uploaded) ||
+    !uploaded[0]
+  ) {
+    throw new Error(
+      "مزيل الضوضاء لم يستقبل العينة."
+    );
   }
 
-  const audioPath = uploaded[0];
+  const audioPath =
+    uploaded[0];
 
-  // تشغيل /predict
-  const predictResponse = await fetch(
-    `${DENOISE_SPACE}/gradio_api/call/predict`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        data: [
-          {
-            path: audioPath,
-            meta: {
-              _type: "gradio.FileData"
+  // =========================================
+  // بدء عملية إزالة الضوضاء
+  // =========================================
+
+  const predictResponse =
+    await fetch(
+      `${DENOISE_SPACE}/gradio_api/call/predict`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+        body: JSON.stringify({
+          data: [
+            {
+              path: audioPath,
+              meta: {
+                _type:
+                  "gradio.FileData"
+              },
+              orig_name:
+                voice.name ||
+                "input_audio"
             },
-            orig_name: voice.name || "input_audio"
-          },
 
-          "Midpoint",
-          64,
-          0.5,
+            // solver
+            "Midpoint",
 
-          // تشغيل إزالة الضوضاء
-          true
-        ]
-      })
-    }
-  );
+            // NFE
+            64,
+
+            // tau
+            0.5,
+
+            // denoising
+            true
+          ]
+        })
+      }
+    );
 
   if (!predictResponse.ok) {
-    throw new Error("فشل تشغيل مزيل الضوضاء.");
+    throw new Error(
+      "فشل تشغيل مزيل الضوضاء."
+    );
   }
 
-  const predictData = await predictResponse.json();
+  const predictData =
+    await predictResponse.json();
 
   if (!predictData.event_id) {
-    throw new Error("مزيل الضوضاء لم يُرجع event_id.");
+    throw new Error(
+      "مزيل الضوضاء لم يُرجع event_id."
+    );
   }
 
-  // انتظار النتيجة
-  const resultResponse = await fetch(
-    `${DENOISE_SPACE}/gradio_api/call/predict/${predictData.event_id}`
-  );
+  // =========================================
+  // انتظار النتيجة النهائية
+  // =========================================
 
-  if (!resultResponse.ok) {
-    throw new Error("فشل الحصول على الصوت المنظف.");
-  }
-
-  const resultText = await resultResponse.text();
-
-  const result = extractAudioFromSSE(resultText);
-
-  if (!result) {
-    throw new Error("لم يتم العثور على الصوت المنظف.");
-  }
-
-  const cleanAudio = await fetchAudioResult(
-    DENOISE_SPACE,
-    result
-  );
+  const cleanAudio =
+    await waitForSSEAudio(
+      DENOISE_SPACE,
+      "predict",
+      predictData.event_id
+    );
 
   if (!cleanAudio) {
-    throw new Error("تعذر تحميل الصوت المنظف.");
+    throw new Error(
+      "لم يتم العثور على الصوت المنظف."
+    );
   }
 
   return {
@@ -292,104 +367,231 @@ async function removeNoise(voice) {
 }
 
 
-// ==================================================
-// استخراج ملف الصوت من SSE
-// ==================================================
+// =====================================================
+// انتظار نتيجة Gradio SSE
+// =====================================================
 
-function extractAudioFromSSE(text) {
-  const lines = text.split("\n");
+async function waitForSSEAudio(
+  baseUrl,
+  endpoint,
+  eventId
+) {
+  const response =
+    await fetch(
+      `${baseUrl}/gradio_api/call/${endpoint}/${eventId}`
+    );
 
-  for (const line of lines) {
-    if (!line.startsWith("data:")) continue;
+  if (!response.ok) {
+    throw new Error(
+      "فشل الاتصال بنتيجة المعالجة."
+    );
+  }
 
-    const raw = line.slice(5).trim();
+  const text =
+    await response.text();
 
-    if (!raw || raw === "[DONE]") continue;
+  return parseCompletedSSE(
+    text,
+    baseUrl
+  );
+}
 
-    try {
-      const data = JSON.parse(raw);
 
-      // الناتج عادة Array
-      if (Array.isArray(data)) {
-        for (const item of data) {
-          const found = findAudioObject(item);
+// =====================================================
+// قراءة SSE
+// =====================================================
 
-          if (found) {
-            return found;
-          }
+async function parseCompletedSSE(
+  text,
+  baseUrl
+) {
+  const blocks =
+    text.split(/\n\n+/);
+
+  for (const block of blocks) {
+    const eventMatch =
+      block.match(
+        /(?:^|\n)event:\s*([^\n]+)/i
+      );
+
+    const dataMatch =
+      block.match(
+        /(?:^|\n)data:\s*([\s\S]+)/i
+      );
+
+    if (!eventMatch || !dataMatch) {
+      continue;
+    }
+
+    const eventName =
+      eventMatch[1].trim();
+
+    const rawData =
+      dataMatch[1]
+        .trim();
+
+    // النتيجة النهائية فقط
+    if (eventName === "complete") {
+      try {
+        const data =
+          JSON.parse(rawData);
+
+        const audio =
+          findAudioFile(data);
+
+        if (!audio) {
+          return null;
         }
-      } else {
-        const found = findAudioObject(data);
+
+        return await downloadAudio(
+          baseUrl,
+          audio
+        );
+
+      } catch (error) {
+        console.error(
+          "SSE PARSE ERROR:",
+          error
+        );
+
+        return null;
+      }
+    }
+
+    // في حالة حدوث خطأ من الخدمة
+    if (eventName === "error") {
+      let message =
+        "خدمة الصوت أعادت خطأ.";
+
+      try {
+        const parsed =
+          JSON.parse(rawData);
+
+        if (typeof parsed === "string") {
+          message = parsed;
+        }
+      } catch {}
+
+      throw new Error(message);
+    }
+  }
+
+  return null;
+}
+
+
+// =====================================================
+// العثور على ملف الصوت داخل النتيجة
+// =====================================================
+
+function findAudioFile(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value === "object"
+  ) {
+    // FileData URL
+    if (
+      typeof value.url ===
+      "string"
+    ) {
+      return value;
+    }
+
+    // FileData path
+    if (
+      typeof value.path ===
+      "string"
+    ) {
+      return value;
+    }
+
+    // Array
+    if (Array.isArray(value)) {
+      for (
+        const item of value
+      ) {
+        const found =
+          findAudioFile(item);
 
         if (found) {
           return found;
         }
       }
-    } catch {
-      // تجاهل أسطر SSE غير JSON
     }
-  }
 
-  return null;
-}
-
-
-// ==================================================
-// البحث عن FileData
-// ==================================================
-
-function findAudioObject(value) {
-  if (!value) return null;
-
-  if (typeof value === "object") {
-    if (
-      value.url ||
-      value.path
+    // Object
+    for (
+      const key of Object.keys(value)
     ) {
-      return value;
-    }
+      const found =
+        findAudioFile(
+          value[key]
+        );
 
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const found = findAudioObject(item);
-
-        if (found) return found;
+      if (found) {
+        return found;
       }
     }
-
-    for (const key of Object.keys(value)) {
-      const found = findAudioObject(value[key]);
-
-      if (found) return found;
-    }
   }
 
   return null;
 }
 
 
-// ==================================================
-// تحميل ملف الصوت الناتج
-// ==================================================
+// =====================================================
+// تحميل ملف الصوت
+// =====================================================
 
-async function fetchAudioResult(baseUrl, audio) {
-  let url = audio.url;
+async function downloadAudio(
+  baseUrl,
+  audio
+) {
+  let audioUrl = null;
 
-  if (!url && audio.path) {
-    if (audio.path.startsWith("http")) {
-      url = audio.path;
+  // إذا أعادت Gradio رابطًا مباشرًا
+  if (
+    audio.url &&
+    typeof audio.url ===
+      "string"
+  ) {
+    audioUrl =
+      audio.url;
+  }
+
+  // إذا أعادت path
+  else if (
+    audio.path &&
+    typeof audio.path ===
+      "string"
+  ) {
+    if (
+      audio.path.startsWith(
+        "http://"
+      ) ||
+      audio.path.startsWith(
+        "https://"
+      )
+    ) {
+      audioUrl =
+        audio.path;
     } else {
-      url =
+      audioUrl =
         `${baseUrl}/gradio_api/file=` +
-        encodeURIComponent(audio.path);
+        encodeURIComponent(
+          audio.path
+        );
     }
   }
 
-  if (!url) {
+  if (!audioUrl) {
     return null;
   }
 
-  const response = await fetch(url);
+  const response =
+    await fetch(audioUrl);
 
   if (!response.ok) {
     return null;
@@ -399,47 +601,87 @@ async function fetchAudioResult(baseUrl, audio) {
 }
 
 
-// ==================================================
+// =====================================================
 // تنظيف النص
-// ==================================================
+// =====================================================
 
-function normalizeText(text, language) {
-  let result = text
-    .trim()
-    .slice(0, 300);
+function normalizeText(
+  text,
+  language
+) {
+  let result =
+    text
+      .trim()
+      .slice(0, 300);
 
   if (language === "en") {
-    result = result
-      .replace(/\s+/g, " ")
-      .replace(/\s+([!?.,:;])/g, "$1")
-      .replace(/([!?.,:;])(?=[A-Za-z])/g, "$1 ");
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([!?.,:;])/g,
+          "$1"
+        )
+        .replace(
+          /([!?.,:;])(?=[A-Za-z])/g,
+          "$1 "
+        );
   }
 
   if (language === "ar") {
-    result = result
-      .replace(/\s+/g, " ")
-      .replace(/\s+([،؛؟!.,])/g, "$1");
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([،؛؟!.,])/g,
+          "$1"
+        );
   }
 
   if (language === "ja") {
-    result = result
-      .replace(/\s+/g, " ")
-      .replace(/\s+([。、！？])/g, "$1");
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([。、！？])/g,
+          "$1"
+        );
   }
 
   return result;
 }
 
 
-// ==================================================
-// JSON Response
-// ==================================================
+// =====================================================
+// JSON
+// =====================================================
 
-function json(data, status = 200) {
+function json(
+  data,
+  status = 200
+) {
   return new Response(
     JSON.stringify(data),
     {
       status,
+      headers: {
+        "Content-Type":
+          "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin":
+          "*"
+      }
+    }
+  );
+    }     status,
       headers: {
         "Content-Type":
           "application/json; charset=utf-8"
