@@ -245,4 +245,205 @@ async function removeNoise(voice) {
           // تشغيل إزالة الضوضاء
           true
         ]
-     
+      })
+    }
+  );
+
+  if (!predictResponse.ok) {
+    throw new Error("فشل تشغيل مزيل الضوضاء.");
+  }
+
+  const predictData = await predictResponse.json();
+
+  if (!predictData.event_id) {
+    throw new Error("مزيل الضوضاء لم يُرجع event_id.");
+  }
+
+  // انتظار النتيجة
+  const resultResponse = await fetch(
+    `${DENOISE_SPACE}/gradio_api/call/predict/${predictData.event_id}`
+  );
+
+  if (!resultResponse.ok) {
+    throw new Error("فشل الحصول على الصوت المنظف.");
+  }
+
+  const resultText = await resultResponse.text();
+
+  const result = extractAudioFromSSE(resultText);
+
+  if (!result) {
+    throw new Error("لم يتم العثور على الصوت المنظف.");
+  }
+
+  const cleanAudio = await fetchAudioResult(
+    DENOISE_SPACE,
+    result
+  );
+
+  if (!cleanAudio) {
+    throw new Error("تعذر تحميل الصوت المنظف.");
+  }
+
+  return {
+    bytes: cleanAudio,
+    name: "clean_voice.wav"
+  };
+}
+
+
+// ==================================================
+// استخراج ملف الصوت من SSE
+// ==================================================
+
+function extractAudioFromSSE(text) {
+  const lines = text.split("\n");
+
+  for (const line of lines) {
+    if (!line.startsWith("data:")) continue;
+
+    const raw = line.slice(5).trim();
+
+    if (!raw || raw === "[DONE]") continue;
+
+    try {
+      const data = JSON.parse(raw);
+
+      // الناتج عادة Array
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          const found = findAudioObject(item);
+
+          if (found) {
+            return found;
+          }
+        }
+      } else {
+        const found = findAudioObject(data);
+
+        if (found) {
+          return found;
+        }
+      }
+    } catch {
+      // تجاهل أسطر SSE غير JSON
+    }
+  }
+
+  return null;
+}
+
+
+// ==================================================
+// البحث عن FileData
+// ==================================================
+
+function findAudioObject(value) {
+  if (!value) return null;
+
+  if (typeof value === "object") {
+    if (
+      value.url ||
+      value.path
+    ) {
+      return value;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = findAudioObject(item);
+
+        if (found) return found;
+      }
+    }
+
+    for (const key of Object.keys(value)) {
+      const found = findAudioObject(value[key]);
+
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
+
+
+// ==================================================
+// تحميل ملف الصوت الناتج
+// ==================================================
+
+async function fetchAudioResult(baseUrl, audio) {
+  let url = audio.url;
+
+  if (!url && audio.path) {
+    if (audio.path.startsWith("http")) {
+      url = audio.path;
+    } else {
+      url =
+        `${baseUrl}/gradio_api/file=` +
+        encodeURIComponent(audio.path);
+    }
+  }
+
+  if (!url) {
+    return null;
+  }
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return await response.arrayBuffer();
+}
+
+
+// ==================================================
+// تنظيف النص
+// ==================================================
+
+function normalizeText(text, language) {
+  let result = text
+    .trim()
+    .slice(0, 300);
+
+  if (language === "en") {
+    result = result
+      .replace(/\s+/g, " ")
+      .replace(/\s+([!?.,:;])/g, "$1")
+      .replace(/([!?.,:;])(?=[A-Za-z])/g, "$1 ");
+  }
+
+  if (language === "ar") {
+    result = result
+      .replace(/\s+/g, " ")
+      .replace(/\s+([،؛؟!.,])/g, "$1");
+  }
+
+  if (language === "ja") {
+    result = result
+      .replace(/\s+/g, " ")
+      .replace(/\s+([。、！？])/g, "$1");
+  }
+
+  return result;
+}
+
+
+// ==================================================
+// JSON Response
+// ==================================================
+
+function json(data, status = 200) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        "Content-Type":
+          "application/json; charset=utf-8"
+      }
+    }
+  );
+}
