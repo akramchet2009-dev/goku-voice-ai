@@ -8,6 +8,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // الصفحة الرئيسية
     if (request.method === "GET" && url.pathname === "/") {
       return new Response("Goku Voice AI is running.", {
         headers: {
@@ -16,6 +17,7 @@ export default {
       });
     }
 
+    // API توليد الصوت
     if (
       request.method === "POST" &&
       url.pathname === "/api/generate"
@@ -57,13 +59,15 @@ export default {
         // 1. إزالة الضوضاء من العينة
         // =========================================
 
-        const denoisedVoice = await removeNoise(voice);
+        const denoisedVoice =
+          await removeNoise(voice);
 
         // =========================================
         // 2. رفع العينة النظيفة إلى Chatterbox
         // =========================================
 
-        const chatterboxUpload = new FormData();
+        const chatterboxUpload =
+          new FormData();
 
         chatterboxUpload.append(
           "files",
@@ -76,13 +80,14 @@ export default {
           )
         );
 
-        const uploadResponse = await fetch(
-          `${CHATTERBOX_SPACE}/gradio_api/upload`,
-          {
-            method: "POST",
-            body: chatterboxUpload
-          }
-        );
+        const uploadResponse =
+          await fetch(
+            `${CHATTERBOX_SPACE}/gradio_api/upload`,
+            {
+              method: "POST",
+              body: chatterboxUpload
+            }
+          );
 
         if (!uploadResponse.ok) {
           throw new Error(
@@ -90,7 +95,8 @@ export default {
           );
         }
 
-        const uploaded = await uploadResponse.json();
+        const uploaded =
+          await uploadResponse.json();
 
         if (
           !Array.isArray(uploaded) ||
@@ -101,46 +107,56 @@ export default {
           );
         }
 
-        const audioPath = uploaded[0];
+        const audioPath =
+          uploaded[0];
 
         // =========================================
         // 3. بدء توليد الصوت
         // =========================================
 
-        const generateResponse = await fetch(
-          `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              data: [
-                cleanText,
-                language,
-                {
-                  path: audioPath,
-                  meta: {
-                    _type: "gradio.FileData"
+        const generateResponse =
+          await fetch(
+            `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+              body: JSON.stringify({
+                data: [
+                  cleanText,
+                  language,
+
+                  {
+                    path: audioPath,
+                    meta: {
+                      _type:
+                        "gradio.FileData"
+                    },
+                    orig_name:
+                      "clean_voice.wav"
                   },
-                  orig_name: "clean_voice.wav"
-                },
 
-                // exaggeration
-                0.5,
+                  // =================================
+                  // إعدادات Chatterbox
+                  // =================================
 
-                // temperature
-                0.75,
+                  // exaggeration
+                  0.45,
 
-                // seed
-                0,
+                  // temperature
+                  0.60,
 
-                // cfg
-                0.5
-              ]
-            })
-          }
-        );
+                  // seed
+                  0,
+
+                  // cfg
+                  0.35
+                ]
+              })
+            }
+          );
 
         if (!generateResponse.ok) {
           throw new Error(
@@ -158,7 +174,7 @@ export default {
         }
 
         // =========================================
-        // 4. انتظار النتيجة النهائية
+        // 4. انتظار النتيجة
         // =========================================
 
         const generatedAudio =
@@ -175,7 +191,7 @@ export default {
         }
 
         // =========================================
-        // 5. إرسال الصوت إلى المتصفح
+        // 5. إرسال الصوت للمتصفح
         // =========================================
 
         return new Response(
@@ -183,9 +199,14 @@ export default {
           {
             status: 200,
             headers: {
-              "Content-Type": "audio/wav",
-              "Cache-Control": "no-store",
-              "Access-Control-Allow-Origin": "*"
+              "Content-Type":
+                "audio/wav",
+
+              "Cache-Control":
+                "no-store",
+
+              "Access-Control-Allow-Origin":
+                "*"
             }
           }
         );
@@ -218,7 +239,7 @@ export default {
 
 
 // =====================================================
-// إزالة الضوضاء
+// إزالة الضوضاء بالذكاء الاصطناعي
 // =====================================================
 
 async function removeNoise(voice) {
@@ -232,7 +253,8 @@ async function removeNoise(voice) {
     "files",
     new File(
       [originalBytes],
-      voice.name || "input_audio",
+      voice.name ||
+        "input_audio",
       {
         type:
           voice.type ||
@@ -272,7 +294,7 @@ async function removeNoise(voice) {
     uploaded[0];
 
   // =========================================
-  // تشغيل إزالة الضوضاء
+  // تشغيل Denoiser
   // =========================================
 
   const predictResponse =
@@ -329,7 +351,7 @@ async function removeNoise(voice) {
   }
 
   // =========================================
-  // انتظار النتيجة
+  // انتظار الصوت المنظف
   // =========================================
 
   const cleanAudio =
@@ -353,7 +375,7 @@ async function removeNoise(voice) {
 
 
 // =====================================================
-// انتظار نتيجة Gradio SSE
+// انتظار نتيجة Gradio
 // =====================================================
 
 async function waitForSSEAudio(
@@ -383,7 +405,7 @@ async function waitForSSEAudio(
 
 
 // =====================================================
-// قراءة SSE
+// قراءة نتيجة SSE
 // =====================================================
 
 async function parseCompletedSSE(
@@ -394,7 +416,6 @@ async function parseCompletedSSE(
     text.split(/\n\n+/);
 
   for (const block of blocks) {
-
     const eventMatch =
       block.match(
         /(?:^|\n)event:\s*([^\n]+)/i
@@ -419,7 +440,7 @@ async function parseCompletedSSE(
       dataMatch[1].trim();
 
     // =========================================
-    // النتيجة النهائية
+    // النتيجة النهائية فقط
     // =========================================
 
     if (eventName === "complete") {
@@ -450,7 +471,7 @@ async function parseCompletedSSE(
     }
 
     // =========================================
-    // خطأ من الخدمة
+    // في حالة حدوث خطأ
     // =========================================
 
     if (eventName === "error") {
@@ -462,8 +483,7 @@ async function parseCompletedSSE(
           JSON.parse(rawData);
 
         if (
-          typeof parsed ===
-          "string"
+          typeof parsed === "string"
         ) {
           message = parsed;
         }
@@ -478,7 +498,7 @@ async function parseCompletedSSE(
 
 
 // =====================================================
-// العثور على ملف الصوت
+// البحث عن ملف صوت
 // =====================================================
 
 function findAudioFile(value) {
@@ -486,13 +506,217 @@ function findAudioFile(value) {
     return null;
   }
 
-  // هذا هو التصحيح المهم
+  // =========================================
+  // التحقق من Object
+  // =========================================
+
   if (typeof value === "object") {
 
     // رابط مباشر
     if (
-      typeof value.url ===
-      "string"
+      typeof value.url === "string"
+    ) {
+      return value;
+    }
+
+    // مسار الملف
+    if (
+      typeof value.path === "string"
+    ) {
+      return value;
+    }
+
+    // Array
+    if (Array.isArray(value)) {
+      for (
+        const item of value
+      ) {
+        const found =
+          findAudioFile(item);
+
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    // البحث داخل Object
+    for (
+      const key of Object.keys(value)
+    ) {
+      const found =
+        findAudioFile(
+          value[key]
+        );
+
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return null;
+}
+
+
+// =====================================================
+// تحميل الصوت
+// =====================================================
+
+async function downloadAudio(
+  baseUrl,
+  audio
+) {
+  let audioUrl = null;
+
+  // =========================================
+  // رابط مباشر
+  // =========================================
+
+  if (
+    audio.url &&
+    typeof audio.url === "string"
+  ) {
+    audioUrl =
+      audio.url;
+  }
+
+  // =========================================
+  // Path
+  // =========================================
+
+  else if (
+    audio.path &&
+    typeof audio.path === "string"
+  ) {
+    if (
+      audio.path.startsWith(
+        "http://"
+      ) ||
+      audio.path.startsWith(
+        "https://"
+      )
+    ) {
+      audioUrl =
+        audio.path;
+    } else {
+      audioUrl =
+        `${baseUrl}/gradio_api/file=` +
+        encodeURIComponent(
+          audio.path
+        );
+    }
+  }
+
+  if (!audioUrl) {
+    return null;
+  }
+
+  const response =
+    await fetch(audioUrl);
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return await response.arrayBuffer();
+}
+
+
+// =====================================================
+// تنظيف النص
+// =====================================================
+
+function normalizeText(
+  text,
+  language
+) {
+  let result =
+    text
+      .trim()
+      .slice(0, 300);
+
+  // =========================================
+  // English
+  // =========================================
+
+  if (language === "en") {
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([!?.,:;])/g,
+          "$1"
+        )
+        .replace(
+          /([!?.,:;])(?=[A-Za-z])/g,
+          "$1 "
+        );
+  }
+
+  // =========================================
+  // Arabic
+  // =========================================
+
+  if (language === "ar") {
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([،؛؟!.,])/g,
+          "$1"
+        );
+  }
+
+  // =========================================
+  // Japanese
+  // =========================================
+
+  if (language === "ja") {
+    result =
+      result
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .replace(
+          /\s+([。、！？])/g,
+          "$1"
+        );
+  }
+
+  return result;
+}
+
+
+// =====================================================
+// JSON Response
+// =====================================================
+
+function json(
+  data,
+  status = 200
+) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        "Content-Type":
+          "application/json; charset=utf-8",
+
+        "Access-Control-Allow-Origin":
+          "*"
+      }
+    }
+  );
+}tring"
     ) {
       return value;
     }
