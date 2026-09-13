@@ -134,131 +134,162 @@
       line-height: 1.6;
       margin-top: 20px;
     }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      color: #d1d5db;
+      font-size: 14px;
+    }
+
+    .check input {
+      width: 18px;
+      height: 18px;
+    }
   </style>
 </head>
 
 <body>
 
-  <div class="container">
+<div class="container">
 
-    <div class="title">
-      <h1>🎙️ Goku Voice AI</h1>
-      <p>تحويل النص إلى كلام باستخدام عينة صوتية</p>
-    </div>
-
-
-    <!-- النص -->
-    <div class="card">
-
-      <div class="field">
-
-        <label for="text">
-          📝 النص
-        </label>
-
-        <textarea
-          id="text"
-          maxlength="300"
-          placeholder="اكتب النص الذي تريد تحويله إلى صوت..."
-        ></textarea>
-
-        <div class="hint">
-          الحد الأقصى 300 حرف.
-        </div>
-
-      </div>
+  <div class="title">
+    <h1>🎙️ Goku Voice AI</h1>
+    <p>تحويل النص إلى كلام باستخدام عينة صوتية</p>
+  </div>
 
 
-      <!-- اللغة -->
-      <div class="field">
+  <!-- النص -->
+  <div class="card">
 
-        <label for="language">
-          🌍 اللغة
-        </label>
+    <div class="field">
 
-        <select id="language">
-
-          <option value="ar">
-            🇸🇦 العربية
-          </option>
-
-          <option value="en" selected>
-            🇺🇸 English
-          </option>
-
-          <option value="ja">
-            🇯🇵 日本語
-          </option>
-
-        </select>
-
-      </div>
-
-
-      <!-- عينة الصوت -->
-      <div class="field">
-
-        <label for="voice">
-          🎤 عينة الصوت
-        </label>
-
-        <input
-          id="voice"
-          type="file"
-          accept="audio/*"
-        >
-
-        <div class="hint">
-          استخدم عينة واضحة قدر الإمكان، ويفضل أن تكون بدون موسيقى أو أصوات أشخاص آخرين.
-          سيتم تنظيف الترددات المنخفضة قبل إرسال العينة للمولد.
-        </div>
-
-      </div>
-
-
-      <button
-        id="generateButton"
-        onclick="generateVoice()"
-      >
-        🎙️ إنشاء الصوت
-      </button>
-
-      <div id="status"></div>
-
-    </div>
-
-
-    <!-- النتيجة -->
-    <div
-      class="card"
-      id="audioBox"
-    >
-
-      <label>
-        🔊 الصوت الناتج
+      <label for="text">
+        📝 النص
       </label>
 
-      <audio
-        id="audioPlayer"
-        controls
-      ></audio>
+      <textarea
+        id="text"
+        maxlength="300"
+        placeholder="اكتب النص الذي تريد تحويله إلى صوت..."
+      ></textarea>
 
-      <a
-        id="downloadLink"
-        href="#"
-        download="goku-voice.wav"
+      <div class="hint">
+        الحد الأقصى 300 حرف.
+      </div>
+
+    </div>
+
+
+    <!-- اللغة -->
+    <div class="field">
+
+      <label for="language">
+        🌍 اللغة
+      </label>
+
+      <select id="language">
+
+        <option value="ar">
+          🇸🇦 العربية
+        </option>
+
+        <option value="en" selected>
+          🇺🇸 English
+        </option>
+
+        <option value="ja">
+          🇯🇵 日本語
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <!-- الصوت -->
+    <div class="field">
+
+      <label for="voice">
+        🎤 عينة الصوت
+      </label>
+
+      <input
+        id="voice"
+        type="file"
+        accept="audio/*"
       >
-        ⬇️ تحميل الصوت
-      </a>
+
+      <div class="hint">
+        استخدم عينة واضحة قدر الإمكان، ويفضل أن تكون بدون موسيقى أو أصوات أشخاص آخرين.
+      </div>
+
+
+      <!-- تنظيف الصوت -->
+      <label class="check">
+
+        <input
+          type="checkbox"
+          id="cleanAudio"
+          checked
+        >
+
+        🧹 تنظيف عينة الصوت من الضجيج
+
+      </label>
+
+      <div class="hint">
+        سيتم تقليل الضجيج منخفض التردد مثل الرياح والاهتزازات قبل إرسال العينة.
+      </div>
 
     </div>
 
 
-    <div class="warning">
-      استخدم عينات صوتية لديك الحق أو الإذن باستخدامها.
-    </div>
+    <button
+      id="generateButton"
+      onclick="generateVoice()"
+    >
+      🎙️ إنشاء الصوت
+    </button>
+
+    <div id="status"></div>
 
   </div>
+
+
+  <!-- النتيجة -->
+  <div
+    class="card"
+    id="audioBox"
+  >
+
+    <label>
+      🔊 الصوت الناتج
+    </label>
+
+    <audio
+      id="audioPlayer"
+      controls
+    ></audio>
+
+    <a
+      id="downloadLink"
+      href="#"
+      download="goku-voice.wav"
+    >
+      ⬇️ تحميل الصوت
+    </a>
+
+  </div>
+
+
+  <div class="warning">
+    استخدم فقط عينات صوتية لديك الحق أو الإذن باستخدامها.
+  </div>
+
+</div>
 
 
 <script>
@@ -276,8 +307,13 @@ async function cleanVoiceFile(file) {
     window.AudioContext ||
     window.webkitAudioContext;
 
+  if (!AudioContext) {
+    return file;
+  }
+
   const audioContext =
     new AudioContext();
+
 
   const audioBuffer =
     await audioContext.decodeAudioData(
@@ -311,13 +347,13 @@ async function cleanVoiceFile(file) {
 
 
   /*
-    High-pass filter
-
-    يساعد على تقليل:
-    - الرياح
-    - اهتزاز الميكروفون
-    - الضجيج منخفض التردد
-  */
+   * فلتر عالي التمرير
+   *
+   * يقلل:
+   * - الرياح
+   * - الاهتزاز
+   * - الضجيج منخفض التردد
+   */
 
   const highPass =
     offlineContext.createBiquadFilter();
@@ -326,18 +362,37 @@ async function cleanVoiceFile(file) {
     "highpass";
 
   highPass.frequency.value =
-    100;
+    120;
 
   highPass.Q.value =
     0.7;
 
 
   /*
-    Compressor
+   * فلتر منخفض التمرير
+   *
+   * يساعد على تقليل بعض الضجيج
+   * عالي التردد.
+   */
 
-    يساعد على جعل مستوى الكلام
-    أكثر ثباتاً.
-  */
+  const lowPass =
+    offlineContext.createBiquadFilter();
+
+  lowPass.type =
+    "lowpass";
+
+  lowPass.frequency.value =
+    11000;
+
+  lowPass.Q.value =
+    0.7;
+
+
+  /*
+   * Compressor
+   *
+   * يجعل مستوى الكلام أكثر ثباتاً.
+   */
 
   const compressor =
     offlineContext.createDynamicsCompressor();
@@ -360,6 +415,7 @@ async function cleanVoiceFile(file) {
 
   source
     .connect(highPass)
+    .connect(lowPass)
     .connect(compressor)
     .connect(offlineContext.destination);
 
@@ -431,13 +487,11 @@ function audioBufferToWav(buffer) {
     true
   );
 
-
   writeString(
     view,
     8,
     "WAVE"
   );
-
 
   writeString(
     view,
@@ -486,7 +540,6 @@ function audioBufferToWav(buffer) {
     bitDepth,
     true
   );
-
 
   writeString(
     view,
@@ -576,6 +629,10 @@ function audioBufferToWav(buffer) {
 }
 
 
+/* =====================================================
+   كتابة WAV
+   ===================================================== */
+
 function writeString(
   view,
   offset,
@@ -621,6 +678,12 @@ async function generateVoice() {
     document.getElementById(
       "language"
     ).value;
+
+
+  const cleanAudio =
+    document.getElementById(
+      "cleanAudio"
+    ).checked;
 
 
   const status =
@@ -688,22 +751,30 @@ async function generateVoice() {
       "none";
 
 
-    status.textContent =
-      "🧹 جارٍ تنظيف عينة الصوت...";
-
-
     const originalVoice =
       voiceInput.files[0];
 
 
-    /*
-      تنظيف العينة
-    */
+    let voiceToSend =
+      originalVoice;
 
-    const cleanedVoice =
-      await cleanVoiceFile(
-        originalVoice
-      );
+
+    /*
+     * تنظيف الصوت
+     */
+
+    if (cleanAudio) {
+
+      status.textContent =
+        "🧹 جارٍ تنظيف عينة الصوت...";
+
+
+      voiceToSend =
+        await cleanVoiceFile(
+          originalVoice
+        );
+
+    }
 
 
     status.textContent =
@@ -728,14 +799,14 @@ async function generateVoice() {
 
     formData.append(
       "voice",
-      cleanedVoice,
+      voiceToSend,
       "cleaned_voice.wav"
     );
 
 
     /*
-      إرسال الطلب إلى Worker
-    */
+     * إرسال الطلب إلى Worker
+     */
 
     const response =
       await fetch(
@@ -752,14 +823,18 @@ async function generateVoice() {
       let errorMessage =
         "فشل إنشاء الصوت.";
 
+
       try {
 
         const error =
           await response.json();
 
+
         if (error.error) {
+
           errorMessage =
             error.error;
+
         }
 
       } catch (_) {}
@@ -768,12 +843,13 @@ async function generateVoice() {
       throw new Error(
         errorMessage
       );
+
     }
 
 
     /*
-      الحصول على الصوت الناتج
-    */
+     * الحصول على الصوت الناتج
+     */
 
     const audioBlob =
       await response.blob();
@@ -786,16 +862,16 @@ async function generateVoice() {
 
 
     /*
-      تشغيل الصوت
-    */
+     * تشغيل الصوت
+     */
 
     audioPlayer.src =
       audioURL;
 
 
     /*
-      رابط التحميل
-    */
+     * رابط التحميل
+     */
 
     downloadLink.href =
       audioURL;
