@@ -9,13 +9,13 @@
   <style>
     * {
       box-sizing: border-box;
-      font-family: Arial, sans-serif;
     }
 
     body {
       margin: 0;
       min-height: 100vh;
-      background: #0b0b0f;
+      font-family: Arial, sans-serif;
+      background: #111827;
       color: white;
       padding: 20px;
     }
@@ -28,99 +28,111 @@
 
     .title {
       text-align: center;
-      margin-top: 20px;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
     }
 
     .title h1 {
-      font-size: 32px;
-      margin-bottom: 8px;
+      margin: 0;
+      font-size: 30px;
     }
 
     .title p {
-      color: #aaa;
-      margin: 0;
+      color: #aeb7c7;
+      margin-top: 8px;
     }
 
     .card {
-      background: #15151c;
-      border: 1px solid #292934;
+      background: #1f2937;
       border-radius: 18px;
       padding: 20px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.25);
     }
 
     label {
       display: block;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       font-weight: bold;
+    }
+
+    textarea,
+    select,
+    input[type="file"] {
+      width: 100%;
+      border: 1px solid #374151;
+      background: #111827;
+      color: white;
+      border-radius: 12px;
+      padding: 13px;
+      font-size: 16px;
     }
 
     textarea {
-      width: 100%;
-      height: 180px;
+      min-height: 130px;
       resize: vertical;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    .hint {
+      color: #9ca3af;
+      font-size: 13px;
+      margin-top: 7px;
+      line-height: 1.5;
+    }
+
+    button {
+      width: 100%;
       border: none;
-      outline: none;
-      border-radius: 12px;
+      border-radius: 13px;
       padding: 15px;
-      background: #0d0d12;
-      color: white;
       font-size: 17px;
-      line-height: 1.6;
-    }
-
-    textarea::placeholder {
-      color: #666;
-    }
-
-    input[type="file"] {
-      width: 100%;
-      padding: 12px;
-      background: #0d0d12;
-      color: #ccc;
-      border-radius: 12px;
-      border: 1px solid #292934;
-    }
-
-    .generate {
-      width: 100%;
-      border: none;
-      border-radius: 14px;
-      padding: 16px;
-      font-size: 18px;
       font-weight: bold;
       cursor: pointer;
-      background: #ff7a00;
-      color: white;
-      margin-top: 10px;
+      background: #f59e0b;
+      color: #111827;
     }
 
-    .generate:active {
-      transform: scale(0.98);
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
 
-    .status {
+    #status {
       text-align: center;
       margin-top: 15px;
-      color: #aaa;
-      min-height: 24px;
+      line-height: 1.6;
+      color: #d1d5db;
     }
 
-    .audio-box {
+    #audioBox {
       display: none;
-      margin-top: 20px;
+      margin-top: 18px;
     }
 
     audio {
       width: 100%;
     }
 
-    .note {
-      color: #777;
-      font-size: 13px;
-      margin-top: 10px;
-      line-height: 1.5;
+    #downloadLink {
+      display: block;
+      text-align: center;
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #374151;
+      color: white;
+      text-decoration: none;
+    }
+
+    .warning {
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.6;
+      margin-top: 20px;
     }
   </style>
 </head>
@@ -131,113 +143,695 @@
 
     <div class="title">
       <h1>🎙️ Goku Voice AI</h1>
-      <p>تحويل النص إلى صوت</p>
+      <p>تحويل النص إلى كلام باستخدام عينة صوتية</p>
     </div>
 
+
+    <!-- النص -->
     <div class="card">
 
-      <label for="text">📝 اكتب النص</label>
+      <div class="field">
 
-      <textarea
-        id="text"
-        placeholder="اكتب النص الذي تريد تحويله إلى صوت هنا..."
-      ></textarea>
+        <label for="text">
+          📝 النص
+        </label>
 
-    </div>
+        <textarea
+          id="text"
+          maxlength="300"
+          placeholder="اكتب النص الذي تريد تحويله إلى صوت..."
+        ></textarea>
 
-    <div class="card">
+        <div class="hint">
+          الحد الأقصى 300 حرف.
+        </div>
 
-      <label for="voice">🎤 عينة الصوت</label>
-
-      <input
-        id="voice"
-        type="file"
-        accept="audio/*"
-      >
-
-      <div class="note">
-        اختر عينة صوتية تملك حق استخدامها.
-        سنجعل رفع العينة مرة واحدة فقط في النسخة النهائية.
       </div>
 
-    </div>
 
-    <div class="card">
+      <!-- اللغة -->
+      <div class="field">
 
-      <button class="generate" onclick="generateVoice()">
-        🔊 توليد الصوت
+        <label for="language">
+          🌍 اللغة
+        </label>
+
+        <select id="language">
+
+          <option value="ar">
+            🇸🇦 العربية
+          </option>
+
+          <option value="en" selected>
+            🇺🇸 English
+          </option>
+
+          <option value="ja">
+            🇯🇵 日本語
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <!-- عينة الصوت -->
+      <div class="field">
+
+        <label for="voice">
+          🎤 عينة الصوت
+        </label>
+
+        <input
+          id="voice"
+          type="file"
+          accept="audio/*"
+        >
+
+        <div class="hint">
+          استخدم عينة واضحة قدر الإمكان، ويفضل أن تكون بدون موسيقى أو أصوات أشخاص آخرين.
+          سيتم تنظيف الترددات المنخفضة قبل إرسال العينة للمولد.
+        </div>
+
+      </div>
+
+
+      <button
+        id="generateButton"
+        onclick="generateVoice()"
+      >
+        🎙️ إنشاء الصوت
       </button>
 
-      <div id="status" class="status"></div>
+      <div id="status"></div>
 
-      <div id="audioBox" class="audio-box">
-        <audio id="audioPlayer" controls></audio>
-      </div>
+    </div>
 
+
+    <!-- النتيجة -->
+    <div
+      class="card"
+      id="audioBox"
+    >
+
+      <label>
+        🔊 الصوت الناتج
+      </label>
+
+      <audio
+        id="audioPlayer"
+        controls
+      ></audio>
+
+      <a
+        id="downloadLink"
+        href="#"
+        download="goku-voice.wav"
+      >
+        ⬇️ تحميل الصوت
+      </a>
+
+    </div>
+
+
+    <div class="warning">
+      استخدم عينات صوتية لديك الحق أو الإذن باستخدامها.
     </div>
 
   </div>
 
-  <script>
 
-    async function generateVoice() {
+<script>
 
-      const text = document.getElementById("text").value.trim();
-      const voice = document.getElementById("voice").files[0];
-      const status = document.getElementById("status");
-      const audioBox = document.getElementById("audioBox");
-      const audioPlayer = document.getElementById("audioPlayer");
+/* =====================================================
+   تنظيف عينة الصوت
+   ===================================================== */
 
-      if (!text) {
-        status.textContent = "⚠️ اكتب نصًا أولًا.";
-        return;
-      }
+async function cleanVoiceFile(file) {
 
-      if (!voice) {
-        status.textContent = "⚠️ اختر عينة صوتية أولًا.";
-        return;
-      }
+  const arrayBuffer =
+    await file.arrayBuffer();
 
-      status.textContent = "⏳ جاري توليد الصوت...";
-      audioBox.style.display = "none";
+  const AudioContext =
+    window.AudioContext ||
+    window.webkitAudioContext;
 
-      try {
+  const audioContext =
+    new AudioContext();
 
-        const formData = new FormData();
+  const audioBuffer =
+    await audioContext.decodeAudioData(
+      arrayBuffer
+    );
 
-        formData.append("text", text);
-        formData.append("voice", voice);
 
-        const response = await fetch("/api/generate", {
-          method: "POST",
-          body: formData
-        });
+  const sampleRate =
+    audioBuffer.sampleRate;
 
-        if (!response.ok) {
-          throw new Error("Generation failed");
-        }
+  const channels =
+    audioBuffer.numberOfChannels;
 
-        const audioBlob = await response.blob();
+  const length =
+    audioBuffer.length;
 
-        const audioURL = URL.createObjectURL(audioBlob);
 
-        audioPlayer.src = audioURL;
-        audioBox.style.display = "block";
+  const offlineContext =
+    new OfflineAudioContext(
+      channels,
+      length,
+      sampleRate
+    );
 
-        status.textContent = "✅ تم إنشاء الصوت!";
 
-      } catch (error) {
+  const source =
+    offlineContext.createBufferSource();
 
-        console.error(error);
+  source.buffer =
+    audioBuffer;
 
-        status.textContent =
-          "❌ لم يعمل التوليد بعد. سنضيف محرك الصوت في الخطوة التالية.";
 
-      }
+  /*
+    High-pass filter
+
+    يساعد على تقليل:
+    - الرياح
+    - اهتزاز الميكروفون
+    - الضجيج منخفض التردد
+  */
+
+  const highPass =
+    offlineContext.createBiquadFilter();
+
+  highPass.type =
+    "highpass";
+
+  highPass.frequency.value =
+    100;
+
+  highPass.Q.value =
+    0.7;
+
+
+  /*
+    Compressor
+
+    يساعد على جعل مستوى الكلام
+    أكثر ثباتاً.
+  */
+
+  const compressor =
+    offlineContext.createDynamicsCompressor();
+
+  compressor.threshold.value =
+    -24;
+
+  compressor.knee.value =
+    18;
+
+  compressor.ratio.value =
+    3;
+
+  compressor.attack.value =
+    0.003;
+
+  compressor.release.value =
+    0.25;
+
+
+  source
+    .connect(highPass)
+    .connect(compressor)
+    .connect(offlineContext.destination);
+
+
+  source.start(0);
+
+
+  const rendered =
+    await offlineContext.startRendering();
+
+
+  await audioContext.close();
+
+
+  return audioBufferToWav(
+    rendered
+  );
+}
+
+
+/* =====================================================
+   تحويل AudioBuffer إلى WAV
+   ===================================================== */
+
+function audioBufferToWav(buffer) {
+
+  const numberOfChannels =
+    buffer.numberOfChannels;
+
+  const sampleRate =
+    buffer.sampleRate;
+
+  const bitDepth =
+    16;
+
+  const blockAlign =
+    numberOfChannels *
+    bitDepth / 8;
+
+  const byteRate =
+    sampleRate *
+    blockAlign;
+
+  const dataSize =
+    buffer.length *
+    blockAlign;
+
+
+  const arrayBuffer =
+    new ArrayBuffer(
+      44 + dataSize
+    );
+
+  const view =
+    new DataView(
+      arrayBuffer
+    );
+
+
+  writeString(
+    view,
+    0,
+    "RIFF"
+  );
+
+  view.setUint32(
+    4,
+    36 + dataSize,
+    true
+  );
+
+
+  writeString(
+    view,
+    8,
+    "WAVE"
+  );
+
+
+  writeString(
+    view,
+    12,
+    "fmt "
+  );
+
+  view.setUint32(
+    16,
+    16,
+    true
+  );
+
+  view.setUint16(
+    20,
+    1,
+    true
+  );
+
+  view.setUint16(
+    22,
+    numberOfChannels,
+    true
+  );
+
+  view.setUint32(
+    24,
+    sampleRate,
+    true
+  );
+
+  view.setUint32(
+    28,
+    byteRate,
+    true
+  );
+
+  view.setUint16(
+    32,
+    blockAlign,
+    true
+  );
+
+  view.setUint16(
+    34,
+    bitDepth,
+    true
+  );
+
+
+  writeString(
+    view,
+    36,
+    "data"
+  );
+
+  view.setUint32(
+    40,
+    dataSize,
+    true
+  );
+
+
+  const channelData = [];
+
+  for (
+    let channel = 0;
+    channel < numberOfChannels;
+    channel++
+  ) {
+
+    channelData.push(
+      buffer.getChannelData(
+        channel
+      )
+    );
+
+  }
+
+
+  let offset = 44;
+
+
+  for (
+    let i = 0;
+    i < buffer.length;
+    i++
+  ) {
+
+    for (
+      let channel = 0;
+      channel < numberOfChannels;
+      channel++
+    ) {
+
+      let sample =
+        channelData[channel][i];
+
+
+      sample =
+        Math.max(
+          -1,
+          Math.min(
+            1,
+            sample
+          )
+        );
+
+
+      const value =
+        sample < 0
+          ? sample * 0x8000
+          : sample * 0x7FFF;
+
+
+      view.setInt16(
+        offset,
+        value,
+        true
+      );
+
+
+      offset += 2;
 
     }
 
-  </script>
+  }
+
+
+  return new Blob(
+    [arrayBuffer],
+    {
+      type: "audio/wav"
+    }
+  );
+}
+
+
+function writeString(
+  view,
+  offset,
+  string
+) {
+
+  for (
+    let i = 0;
+    i < string.length;
+    i++
+  ) {
+
+    view.setUint8(
+      offset + i,
+      string.charCodeAt(i)
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   توليد الصوت
+   ===================================================== */
+
+async function generateVoice() {
+
+  const text =
+    document
+      .getElementById("text")
+      .value
+      .trim();
+
+
+  const voiceInput =
+    document.getElementById(
+      "voice"
+    );
+
+
+  const language =
+    document.getElementById(
+      "language"
+    ).value;
+
+
+  const status =
+    document.getElementById(
+      "status"
+    );
+
+
+  const audioBox =
+    document.getElementById(
+      "audioBox"
+    );
+
+
+  const audioPlayer =
+    document.getElementById(
+      "audioPlayer"
+    );
+
+
+  const downloadLink =
+    document.getElementById(
+      "downloadLink"
+    );
+
+
+  const button =
+    document.getElementById(
+      "generateButton"
+    );
+
+
+  /* التحقق من النص */
+
+  if (!text) {
+
+    status.textContent =
+      "⚠️ اكتب نصاً أولاً.";
+
+    return;
+  }
+
+
+  /* التحقق من الصوت */
+
+  if (
+    !voiceInput.files ||
+    !voiceInput.files[0]
+  ) {
+
+    status.textContent =
+      "⚠️ اختر عينة صوتية أولاً.";
+
+    return;
+  }
+
+
+  try {
+
+    button.disabled =
+      true;
+
+
+    audioBox.style.display =
+      "none";
+
+
+    status.textContent =
+      "🧹 جارٍ تنظيف عينة الصوت...";
+
+
+    const originalVoice =
+      voiceInput.files[0];
+
+
+    /*
+      تنظيف العينة
+    */
+
+    const cleanedVoice =
+      await cleanVoiceFile(
+        originalVoice
+      );
+
+
+    status.textContent =
+      "🎙️ جارٍ إنشاء الصوت...";
+
+
+    const formData =
+      new FormData();
+
+
+    formData.append(
+      "text",
+      text
+    );
+
+
+    formData.append(
+      "language",
+      language
+    );
+
+
+    formData.append(
+      "voice",
+      cleanedVoice,
+      "cleaned_voice.wav"
+    );
+
+
+    /*
+      إرسال الطلب إلى Worker
+    */
+
+    const response =
+      await fetch(
+        "/api/generate",
+        {
+          method: "POST",
+          body: formData
+        }
+      );
+
+
+    if (!response.ok) {
+
+      let errorMessage =
+        "فشل إنشاء الصوت.";
+
+      try {
+
+        const error =
+          await response.json();
+
+        if (error.error) {
+          errorMessage =
+            error.error;
+        }
+
+      } catch (_) {}
+
+
+      throw new Error(
+        errorMessage
+      );
+    }
+
+
+    /*
+      الحصول على الصوت الناتج
+    */
+
+    const audioBlob =
+      await response.blob();
+
+
+    const audioURL =
+      URL.createObjectURL(
+        audioBlob
+      );
+
+
+    /*
+      تشغيل الصوت
+    */
+
+    audioPlayer.src =
+      audioURL;
+
+
+    /*
+      رابط التحميل
+    */
+
+    downloadLink.href =
+      audioURL;
+
+
+    audioBox.style.display =
+      "block";
+
+
+    status.textContent =
+      "✅ تم إنشاء الصوت بنجاح!";
+
+
+  } catch (error) {
+
+    console.error(error);
+
+
+    status.textContent =
+      "❌ حدث خطأ: " +
+      (
+        error.message ||
+        "حاول مرة أخرى"
+      );
+
+
+  } finally {
+
+    button.disabled =
+      false;
+
+  }
+
+}
+
+</script>
 
 </body>
-        </html>
+</html>
