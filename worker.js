@@ -7,7 +7,7 @@ const DENOISE_SPACE =
 const MAX_TEXT_LENGTH = 2000;
 const CHUNK_SIZE = 280;
 
-const HTTP_TIMEOUT_MS = 120000; // دقيقتان لكل طلب
+const HTTP_TIMEOUT_MS = 120000;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 2000;
 
@@ -67,13 +67,11 @@ export default {
         console.log(`Text length: ${cleanText.length}`);
         console.log(`Generating ${chunks.length} chunk(s)`);
 
-        // 1) إزالة الضوضاء من العينة
         const denoisedVoice = await removeNoise(voice);
         if (!denoisedVoice || !denoisedVoice.bytes) {
           throw new Error("فشل تنظيف الصوت المدخل.");
         }
 
-        // 2) ارفع العينة النظيفة إلى Chatterbox (مع Retry)
         const uploaded = await withRetry(async () => {
           const fd = new FormData();
           fd.append(
@@ -94,23 +92,19 @@ export default {
             );
           }
 
-          const json = await uploadResponse.json();
-          if (!Array.isArray(json) || !json[0]) {
+          const result = await uploadResponse.json();
+          if (!Array.isArray(result) || !result[0]) {
             throw new Error("Chatterbox لم يستقبل العينة.");
           }
-          return json;
+          return result;
         }, "chatterbox-upload");
 
         const audioPath = uploaded[0];
-
-        // 3) ولّد كل مقطع
         const audioChunks = [];
+
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i];
-          console.log(
-            `Generating chunk ${i + 1}/${chunks.length}:`,
-            chunk
-          );
+          console.log(`Generating chunk ${i + 1}/${chunks.length}:`, chunk);
 
           const generatedAudio = await generateChatterboxAudio(
             chunk,
@@ -127,7 +121,6 @@ export default {
           audioChunks.push(generatedAudio);
         }
 
-        // 4) ادمج كل ملفات WAV
         console.log(`Merging ${audioChunks.length} audio files...`);
         const finalAudio = mergeWavFiles(audioChunks);
         if (!finalAudio) {
@@ -188,6 +181,7 @@ function sleep(ms) {
 
 function isTransientError(err) {
   const msg = String(err?.message || "").toLowerCase();
+  if (/\b5\d{2}\b/.test(msg)) return true;
   return [
     "queue",
     "sleeping",
@@ -195,9 +189,6 @@ function isTransientError(err) {
     "starting",
     "timeout",
     "timed out",
-    "503",
-    "502",
-    "504",
     "network",
     "failed to fetch",
     "connection",
@@ -240,7 +231,7 @@ async function withRetry(fn, label) {
 }
 
 /* ======================================================
-   تنظيف النص
+   ✅ تنظيف النص (الدالة المفقودة)
 ====================================================== */
 function normalizeText(text, language) {
   if (!text || typeof text !== "string") return "";
@@ -260,7 +251,7 @@ function normalizeText(text, language) {
 }
 
 /* ======================================================
-   تقسيم النص إلى مقاطع
+   تقسيم النص
 ====================================================== */
 function splitTextIntoChunks(text, language) {
   const chunks = [];
@@ -308,7 +299,7 @@ function splitTextIntoChunks(text, language) {
 }
 
 /* ======================================================
-   توليد مقطع واحد من Chatterbox (مع Retry)
+   توليد مقطع واحد من Chatterbox
 ====================================================== */
 async function generateChatterboxAudio(text, language, audioPath) {
   return await withRetry(async () => {
@@ -329,7 +320,8 @@ async function generateChatterboxAudio(text, language, audioPath) {
             0.45, // Exaggeration
             0.60, // Temperature
             0,    // Seed
-            language === "en" ? 0 : 0.35 // CFG
+            // CFG: English=0، Arabic=0.5، Japanese=0.35
+            language === "en" ? 0 : language === "ar" ? 0.5 : 0.35
           ]
         })
       }
@@ -355,7 +347,7 @@ async function generateChatterboxAudio(text, language, audioPath) {
 }
 
 /* ======================================================
-   إزالة الضوضاء (مع Retry)
+   إزالة الضوضاء
 ====================================================== */
 async function removeNoise(voice) {
   const originalBytes = await voice.arrayBuffer();
@@ -363,7 +355,6 @@ async function removeNoise(voice) {
   const fileType = voice.type || "audio/wav";
 
   return await withRetry(async () => {
-    // 1) ارفع إلى مزيل الضوضاء
     const uploadForm = new FormData();
     uploadForm.append(
       "files",
@@ -386,7 +377,6 @@ async function removeNoise(voice) {
       throw new Error("مزيل الضوضاء لم يستقبل العينة.");
     }
 
-    // 2) اطلب المعالجة
     const predictResponse = await fetchWithTimeout(
       `${DENOISE_SPACE}/gradio_api/call/predict`,
       {
@@ -419,7 +409,6 @@ async function removeNoise(voice) {
       throw new Error("مزيل الضوضاء لم يُرجع event_id.");
     }
 
-    // 3) انتظر النتيجة
     const cleanAudio = await waitForSSEAudio(
       DENOISE_SPACE,
       "predict",
@@ -492,7 +481,6 @@ function extractErrorMessage(rawData, endpoint) {
   let message = "خدمة الصوت أعادت خطأ.";
   try {
     const parsed = JSON.parse(rawData);
-
     if (typeof parsed === "string") {
       message = parsed;
     } else if (parsed && typeof parsed === "object") {
@@ -640,7 +628,7 @@ function mergeWavFiles(wavBuffers) {
 }
 
 /* ======================================================
-   تحليل WAV
+   ✅ تحليل WAV (نسخة كاملة - كانت مقطوعة)
 ====================================================== */
 function parseWav(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -709,7 +697,7 @@ function parseWav(buffer) {
 }
 
 /* ======================================================
-   قراءة / كتابة نصوص بايتية
+   ✅ قراءة / كتابة نصوص بايتية (الدالتان المفقودتان)
 ====================================================== */
 function readString(bytes, offset, length) {
   let result = "";
@@ -723,4 +711,4 @@ function writeString(bytes, offset, str) {
   for (let i = 0; i < str.length; i++) {
     bytes[offset + i] = str.charCodeAt(i);
   }
-  }
+      }
