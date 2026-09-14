@@ -8,26 +8,34 @@ const DENOISE_SPACE =
 // الإعدادات
 // ======================================================
 
-const MAX_TEXT_LENGTH = 2000;      // الحد الأقصى للنص
-const CHUNK_SIZE = 220;            // حجم المقطع الواحد
-const CHUNK_DELAY_MS = 800;        // تأخير بين المقاطع
-const SILENCE_SECONDS = 0.35;      // صمت بين المقاطع
-const MAX_RETRIES = 2;             // عدد محاولات إعادة التوليد
+const MAX_TEXT_LENGTH = 2000;
+const CHUNK_SIZE = 220;
+const CHUNK_DELAY_MS = 800;
+const SILENCE_SECONDS = 0.35;
+const MAX_RETRIES = 2;
 
-// إعدادات الصوت (لجعل الكلام طبيعياً)
-const EXAGGERATION = 0.5;          // كان 0.45
-const TEMPERATURE = 0.7;           // كان 0.60
-const CFG_PACE = 0.7;              // كان 0.35 ← الأهم: يبطئ الكلام
+// إعدادات الصوت
+const EXAGGERATION = 0.5;
+const TEMPERATURE = 0.7;
+const CFG_PACE = 0.7;
+
+// ======================================================
+// خريطة اللغات: رموز ISO ← أسماء اللغات الكاملة
+// (Chatterbox Multilingual يستخدم أسماء كاملة، وليس رموز)
+// ======================================================
+
+const LANGUAGE_MAP = {
+  ar: "Arabic",
+  en: "English",
+  ja: "Japanese"
+};
 
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // =========================
     // الصفحة الرئيسية
-    // =========================
-
     if (request.method === "GET" && url.pathname === "/") {
       return new Response("Goku Voice AI is running.", {
         headers: {
@@ -36,22 +44,16 @@ export default {
       });
     }
 
-    // =========================
     // توليد الصوت
-    // =========================
-
     if (request.method === "POST" && url.pathname === "/api/generate") {
       try {
         const form = await request.formData();
 
         const text = form.get("text");
-        const language = form.get("language") || "en";
+        const languageCode = form.get("language") || "en";
         const voice = form.get("voice");
 
-        // =========================
         // التحقق من البيانات
-        // =========================
-
         if (!text || typeof text !== "string") {
           return json({ error: "اكتب نصاً أولاً." }, 400);
         }
@@ -60,15 +62,21 @@ export default {
           return json({ error: "لم يتم إرسال عينة صوتية." }, 400);
         }
 
-        if (!["ar", "en", "ja"].includes(language)) {
-          return json({ error: "اللغة غير مدعومة." }, 400);
+        // تحويل رمز اللغة إلى الاسم الكامل
+        const language = LANGUAGE_MAP[languageCode];
+
+        if (!language) {
+          return json(
+            {
+              error:
+                `اللغة "${languageCode}" غير مدعومة. المدعوم: ar, en, ja`
+            },
+            400
+          );
         }
 
-        // =========================
         // تنظيف النص
-        // =========================
-
-        const cleanText = normalizeText(text, language);
+        const cleanText = normalizeText(text, languageCode);
 
         if (!cleanText) {
           return json({ error: "النص فارغ بعد التنظيف." }, 400);
@@ -81,30 +89,21 @@ export default {
           );
         }
 
-        // =========================
         // تقسيم النص
-        // =========================
-
-        const chunks = splitTextIntoChunks(cleanText, language);
+        const chunks = splitTextIntoChunks(cleanText, languageCode);
 
         if (!chunks.length) {
           return json({ error: "لم يتم العثور على نص صالح." }, 400);
         }
 
-        console.log(`Language: ${language}`);
+        console.log(`Language code: ${languageCode} → API: "${language}"`);
         console.log(`Text length: ${cleanText.length}`);
         console.log(`Generating ${chunks.length} chunk(s)`);
 
-        // =========================
-        // إزالة الضوضاء من العينة
-        // =========================
-
+        // إزالة الضوضاء
         const denoisedVoice = await removeNoise(voice);
 
-        // =========================
-        // رفع الصوت المنظف إلى Chatterbox
-        // =========================
-
+        // رفع الصوت إلى Chatterbox
         const chatterboxUpload = new FormData();
 
         chatterboxUpload.append(
@@ -136,10 +135,7 @@ export default {
 
         const audioPath = uploaded[0];
 
-        // =========================
-        // توليد جميع المقاطع
-        // =========================
-
+        // توليد المقاطع
         const audioChunks = [];
 
         for (let i = 0; i < chunks.length; i++) {
@@ -163,16 +159,12 @@ export default {
 
           audioChunks.push(generatedAudio);
 
-          // تأخير بين المقاطع لتجنب رفض الطلبات
           if (i < chunks.length - 1) {
             await sleep(CHUNK_DELAY_MS);
           }
         }
 
-        // =========================
-        // دمج جميع ملفات WAV
-        // =========================
-
+        // دمج الملفات
         console.log(`Merging ${audioChunks.length} audio files...`);
 
         const finalAudio = mergeWavFiles(audioChunks);
@@ -182,10 +174,6 @@ export default {
         }
 
         console.log("Final audio generated successfully.");
-
-        // =========================
-        // إرسال الصوت النهائي
-        // =========================
 
         return new Response(finalAudio, {
           status: 200,
@@ -216,7 +204,7 @@ export default {
 
 
 // ======================================================
-// توليد مقطع واحد من Chatterbox (مع إعادة المحاولة)
+// توليد مقطع من Chatterbox
 // ======================================================
 
 async function generateChatterboxAudio(text, language, audioPath) {
@@ -240,23 +228,32 @@ async function generateChatterboxAudio(text, language, audioPath) {
                 meta: { _type: "gradio.FileData" },
                 orig_name: "clean_voice.wav"
               },
-              EXAGGERATION,  // Exaggeration
-              TEMPERATURE,   // Temperature
-              0,             // Seed
-              CFG_PACE       // CFG / Pace
+              EXAGGERATION,
+              TEMPERATURE,
+              0,
+              CFG_PACE
             ]
           })
         }
       );
 
+      // إذا فشل الطلب، اقرأ الرسالة الحقيقية من الخادم
       if (!generateResponse.ok) {
-        throw new Error("فشل بدء توليد الصوت.");
+        const errorText = await generateResponse.text();
+        console.error(
+          `Chatterbox POST failed (${generateResponse.status}):`,
+          errorText
+        );
+        throw new Error(
+          `فشل بدء التوليد (${generateResponse.status}): ${errorText.slice(0, 300)}`
+        );
       }
 
       const generateData = await generateResponse.json();
 
       if (!generateData.event_id) {
-        throw new Error("لم يتم الحصول على event_id.");
+        console.error("No event_id in response:", generateData);
+        throw new Error("لم يتم الحصول على event_id من الخدمة.");
       }
 
       const audio = await waitForSSEAudio(
@@ -288,7 +285,7 @@ async function generateChatterboxAudio(text, language, audioPath) {
 
 
 // ======================================================
-// دالة مساعدة للتأخير
+// التأخير
 // ======================================================
 
 function sleep(ms) {
@@ -297,7 +294,7 @@ function sleep(ms) {
 
 
 // ======================================================
-// تقسيم النص الطويل
+// تقسيم النص
 // ======================================================
 
 function splitTextIntoChunks(text, language) {
@@ -350,7 +347,7 @@ function splitTextIntoChunks(text, language) {
 
 
 // ======================================================
-// تنظيف النص العام
+// تنظيف النص
 // ======================================================
 
 function normalizeText(text, language) {
@@ -362,7 +359,6 @@ function normalizeText(text, language) {
     .replace(/[ \t]+/g, " ")
     .trim();
 
-  // إذا كانت اللغة عربية، طبّق التنظيف الخاص
   if (language === "ar") {
     result = normalizeArabicText(result);
   }
@@ -372,29 +368,22 @@ function normalizeText(text, language) {
 
 
 // ======================================================
-// تنظيف النص العربي من التشكيل والرموز الخاصة
+// تنظيف النص العربي
 // ======================================================
 
 function normalizeArabicText(text) {
   if (!text) return "";
 
   return text
-    // إزالة التشكيل (الفتحة، الضمة، الكسرة، السكون، الشدة، التنوين)
     .replace(/[\u064B-\u065F\u0670]/g, "")
-    // إزالة التطويل (الكشيدة)
     .replace(/\u0640/g, "")
-    // توحيد الألف (أ، إ، آ → ا)
     .replace(/[أإآٱ]/g, "ا")
-    // توحيد الياء (ى → ي)
     .replace(/ى/g, "ي")
-    // توحيد التاء المربوطة (ة → ه) - يساعد النموذج على النطق
     .replace(/ة/g, "ه")
-    // إزالة الرموز الخاصة غير الضرورية مع الحفاظ على علامات الترقيم
     .replace(
       /[^\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\s\.\,\!\?\؛\،\:\-\n]/g,
       ""
     )
-    // إزالة المسافات الزائدة
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -489,7 +478,7 @@ async function removeNoise(voice) {
 
 
 // ======================================================
-// انتظار نتيجة Gradio SSE
+// انتظار نتيجة SSE
 // ======================================================
 
 async function waitForSSEAudio(baseUrl, endpoint, eventId) {
@@ -498,7 +487,10 @@ async function waitForSSEAudio(baseUrl, endpoint, eventId) {
   );
 
   if (!response.ok) {
-    throw new Error("فشل الاتصال بنتيجة المعالجة.");
+    const errorText = await response.text();
+    throw new Error(
+      `فشل الاتصال بالنتيجة (${response.status}): ${errorText.slice(0, 300)}`
+    );
   }
 
   const text = await response.text();
@@ -539,9 +531,13 @@ async function parseCompletedSSE(text, baseUrl) {
       }
     }
 
-    // حدث خطأ
+    // حدث خطأ - اعرض الرسالة الحقيقية دائماً
     if (eventName === "error") {
-      let message = "خدمة الصوت أعادت خطأ.";
+      // سجّل الرد الخام كاملاً
+      console.error("CHATTERBOX RAW ERROR:", rawData);
+
+      // حاول استخراج رسالة مقروءة
+      let message = rawData;
 
       try {
         const parsed = JSON.parse(rawData);
@@ -555,14 +551,19 @@ async function parseCompletedSSE(text, baseUrl) {
             message = parsed.message;
           } else if (Array.isArray(parsed) && parsed.length > 0) {
             message = String(parsed[0]);
+          } else {
+            // إذا كان كائناً بلا حقول معروفة، اعرضه كنص
+            message = JSON.stringify(parsed);
           }
         }
       } catch {
-        message = rawData;
+        // اترك rawData كما هو
       }
 
-      // تسجيل الخطأ الكامل في سجل Cloudflare
-      console.error("CHATTERBOX ERROR:", rawData);
+      // اقتصر الرسالة على 500 حرف لتجنب رسائل ضخمة
+      if (message.length > 500) {
+        message = message.slice(0, 500) + "...";
+      }
 
       throw new Error(message);
     }
@@ -573,7 +574,7 @@ async function parseCompletedSSE(text, baseUrl) {
 
 
 // ======================================================
-// البحث عن ملف الصوت داخل نتيجة Gradio
+// البحث عن ملف الصوت
 // ======================================================
 
 function findAudioFile(value) {
@@ -632,18 +633,16 @@ async function downloadAudio(baseUrl, audio) {
 
 
 // ======================================================
-// دمج ملفات WAV (مع إضافة صمت بين المقاطع)
+// دمج ملفات WAV
 // ======================================================
 
 function mergeWavFiles(wavBuffers) {
   if (!wavBuffers || wavBuffers.length === 0) return null;
-
   if (wavBuffers.length === 1) return wavBuffers[0];
 
   const wavInfos = wavBuffers.map(parseWav);
   const first = wavInfos[0];
 
-  // التأكد من تطابق خصائص الصوت
   for (let i = 1; i < wavInfos.length; i++) {
     const current = wavInfos[i];
     if (
@@ -652,19 +651,13 @@ function mergeWavFiles(wavBuffers) {
       current.sampleRate !== first.sampleRate ||
       current.bitsPerSample !== first.bitsPerSample
     ) {
-      throw new Error(
-        "ملفات الصوت الناتجة لها خصائص مختلفة ولا يمكن دمجها."
-      );
+      throw new Error("ملفات الصوت لها خصائص مختلفة ولا يمكن دمجها.");
     }
   }
 
-  // حساب حجم الصمت بين المقاطع
   const bytesPerSample = first.bitsPerSample / 8;
   const silenceBytes = Math.floor(
-    first.sampleRate *
-      first.numChannels *
-      bytesPerSample *
-      SILENCE_SECONDS
+    first.sampleRate * first.numChannels * bytesPerSample * SILENCE_SECONDS
   );
 
   const totalSilence = silenceBytes * (wavInfos.length - 1);
@@ -675,21 +668,18 @@ function mergeWavFiles(wavBuffers) {
   }
 
   const fmtChunk = first.fmtChunk;
-  const outputSize =
-    12 + 8 + fmtChunk.length + 8 + totalDataSize;
+  const outputSize = 12 + 8 + fmtChunk.length + 8 + totalDataSize;
 
   const output = new ArrayBuffer(outputSize);
   const view = new DataView(output);
   const bytes = new Uint8Array(output);
 
-  // RIFF
   writeString(bytes, 0, "RIFF");
   view.setUint32(4, outputSize - 8, true);
   writeString(bytes, 8, "WAVE");
 
   let offset = 12;
 
-  // fmt
   writeString(bytes, offset, "fmt ");
   offset += 4;
   view.setUint32(offset, fmtChunk.length, true);
@@ -697,20 +687,17 @@ function mergeWavFiles(wavBuffers) {
   bytes.set(fmtChunk, offset);
   offset += fmtChunk.length;
 
-  // data
   writeString(bytes, offset, "data");
   offset += 4;
   view.setUint32(offset, totalDataSize, true);
   offset += 4;
 
-  // نسخ المقاطع مع إدراج الصمت بينها
   for (let i = 0; i < wavInfos.length; i++) {
     bytes.set(wavInfos[i].data, offset);
     offset += wavInfos[i].data.length;
 
     if (i < wavInfos.length - 1) {
       offset += silenceBytes;
-      // البايتات الافتراضية = 0، وهي صمت في WAV
     }
   }
 
@@ -795,4 +782,27 @@ function parseWav(buffer) {
 // ======================================================
 
 function writeString(bytes, offset, value) {
-  for 
+  for (let i = 0; i < value.length; i++) {
+    bytes[offset + i] = value.charCodeAt(i);
+  }
+}
+
+function readString(bytes, offset, length) {
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += String.fromCharCode(bytes[offset + i]);
+  }
+  return result;
+}
+
+
+// ======================================================
+// رد JSON
+// ======================================================
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control
