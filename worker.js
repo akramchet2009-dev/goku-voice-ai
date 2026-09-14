@@ -10,7 +10,8 @@ const EXAGGERATION = 0.5;
 const TEMPERATURE = 0.7;
 const CFG_PACE = 0.7;
 
-const LANGUAGE_MAP = { ar: "Arabic", en: "English", ja: "Japanese" };
+// ✅ رموز اللغات الصحيحة (ISO codes كما يعرّفها Chatterbox)
+const SUPPORTED_LANGS = ["ar", "en", "ja"];
 
 export default {
   async fetch(request, env) {
@@ -29,39 +30,54 @@ export default {
     try {
       const form = await request.formData();
       const text = form.get("text");
-      const langCode = form.get("language") || "en";
+      const language = form.get("language") || "en";
       const voice = form.get("voice");
 
       if (!text || typeof text !== "string") return json({ error: "اكتب نصاً أولاً." }, 400);
       if (!voice || typeof voice === "string") return json({ error: "لم يتم إرسال عينة صوتية." }, 400);
+      if (!SUPPORTED_LANGS.includes(language)) return json({ error: `اللغة ${language} غير مدعومة.` }, 400);
 
-      const language = LANGUAGE_MAP[langCode];
-      if (!language) return json({ error: `اللغة ${langCode} غير مدعومة.` }, 400);
-
-      const cleanText = normalizeText(text, langCode);
+      const cleanText = normalizeText(text, language);
       if (!cleanText) return json({ error: "النص فارغ بعد التنظيف." }, 400);
       if (cleanText.length > MAX_TEXT_LENGTH) return json({ error: `الحد الأقصى ${MAX_TEXT_LENGTH} حرف.` }, 400);
 
       const chunks = splitTextIntoChunks(cleanText);
       if (!chunks.length) return json({ error: "لا يوجد نص صالح." }, 400);
 
-      console.log(`Lang: ${langCode} → "${language}" | Chars: ${cleanText.length} | Chunks: ${chunks.length}`);
+      console.log(`Lang: ${language} | Chars: ${cleanText.length} | Chunks: ${chunks.length}`);
 
-      const denoised = await removeNoise(voice);
+      // محاولة إزالة الضوضاء، وإذا فشلت نستخدم الصوت الأصلي
+      let finalVoiceBytes;
+      let finalVoiceName;
+      try {
+        const denoised = await removeNoise(voice);
+        finalVoiceBytes = denoised.bytes;
+        finalVoiceName = denoised.name;
+        console.log("Denoise: OK");
+      } catch (denoiseErr) {
+        console.warn("Denoise failed, using original audio:", denoiseErr.message);
+        finalVoiceBytes = await voice.arrayBuffer();
+        finalVoiceName = voice.name || "input_audio.wav";
+      }
 
+      // رفع الصوت إلى Chatterbox
       const upForm = new FormData();
-      upForm.append("files", new File([denoised.bytes], "clean_voice.wav", { type: "audio/wav" }));
+      upForm.append("files", new File([finalVoiceBytes], finalVoiceName, { type: "audio/wav" }));
 
       const upRes = await fetch(`${CHATTERBOX}/gradio_api/upload`, { method: "POST", body: upForm });
-      if (!upRes.ok) throw new Error("فشل رفع الصوت إلى Chatterbox.");
+      if (!upRes.ok) {
+        const t = await upRes.text();
+        throw new Error(`فشل رفع الصوت إلى Chatterbox (${upRes.status}): ${t.slice(0, 200)}`);
+      }
 
       const uploaded = await upRes.json();
       if (!Array.isArray(uploaded) || !uploaded[0]) throw new Error("Chatterbox لم يستقبل العينة.");
       const audioPath = uploaded[0];
+      console.log("Upload OK, path:", audioPath);
 
       const audioChunks = [];
       for (let i = 0; i < chunks.length; i++) {
-        console.log(`Chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`);
+        console.log(`Chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars): "${chunks[i].slice(0, 60)}..."`);
         const audio = await generateChatterboxAudio(chunks[i], language, audioPath);
         if (!audio) throw new Error(`فشل توليد الجزء ${i + 1}.`);
         audioChunks.push(audio);
@@ -94,24 +110,28 @@ async function generateChatterboxAudio(text, language, audioPath) {
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const payload = {
+        data: [
+          text,
+          language,
+          {
+            path: audioPath,
+            meta: { _type: "gradio.FileData" },
+            orig_name: "clean_voice.wav"
+          },
+          EXAGGERATION,
+          TEMPERATURE,
+          0,
+          CFG_PACE
+        ]
+      };
+
+      console.log("Chatterbox payload:", JSON.stringify(payload).slice(0, 400));
+
       const res = await fetch(`${CHATTERBOX}/gradio_api/call/generate_tts_audio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: [
-            text,
-            language,
-            {
-              path: audioPath,
-              meta: { _type: "gradio.FileData" },
-              orig_name: "clean_voice.wav"
-            },
-            EXAGGERATION,
-            TEMPERATURE,
-            0,
-            CFG_PACE
-          ]
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
@@ -121,6 +141,8 @@ async function generateChatterboxAudio(text, language, audioPath) {
       }
 
       const data = await res.json();
+      console.log("Chatterbox POST response:", JSON.stringify(data).slice(0, 300));
+
       if (!data.event_id) throw new Error("لا يوجد event_id.");
 
       const audio = await waitForSSEAudio(CHATTERBOX, "generate_tts_audio", data.event_id);
@@ -152,10 +174,7 @@ function splitTextIntoChunks(text) {
     }
 
     let cut = remaining.lastIndexOf(" ", CHUNK_SIZE);
-
-    const puncts = [
-      ".", "!", "?", "؟", "،", ",", "؛", ";", "。", "！", "？"
-    ];
+    const puncts = [".", "!", "?", "؟", "،", ",", "؛", ";", "。", "！", "？"];
 
     for (const p of puncts) {
       const pos = remaining.lastIndexOf(p, CHUNK_SIZE);
@@ -235,6 +254,7 @@ async function waitForSSEAudio(baseUrl, endpoint, eventId) {
     throw new Error(`فشل الاتصال (${res.status}): ${t.slice(0, 300)}`);
   }
   const text = await res.text();
+  console.log(`SSE raw (first 500 chars): ${text.slice(0, 500)}`);
   return parseCompletedSSE(text, baseUrl);
 }
 
@@ -262,7 +282,15 @@ async function parseCompletedSSE(text, baseUrl) {
     }
 
     if (eventName === "error") {
-      console.error("CHATTERBOX RAW ERROR:", rawData);
+      console.error("CHATTERBOX ERROR EVENT. Raw SSE text:", text.slice(0, 1000));
+
+      // إذا كانت rawData هي "null" حرفياً، فهذا يعني خطأً داخلياً في الخدمة
+      if (!rawData || rawData === "null") {
+        throw new Error(
+          "نموذج الصوت رفض الطلب. جرّب: (1) عينة صوتية أقصر (5-15 ثانية)، (2) نص أقصر، (3) ارفع عينة بجودة أعلى، (4) أعد المحاولة بعد دقيقة."
+        );
+      }
+
       let message = rawData;
       try {
         const parsed = JSON.parse(rawData);
@@ -274,7 +302,8 @@ async function parseCompletedSSE(text, baseUrl) {
           else message = JSON.stringify(parsed);
         }
       } catch {}
-      if (message.length > 500) message = message.slice(0, 500) + "...";
+
+      if (message.length > 400) message = message.slice(0, 400) + "...";
       throw new Error(message);
     }
   }
