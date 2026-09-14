@@ -1044,4 +1044,151 @@ function parseWav(buffer) {
       readString(
         bytes,
         offset,
-        
+        4
+      );
+
+    const chunkSize =
+      view.getUint32(
+        offset + 4,
+        true
+      );
+
+    const chunkStart =
+      offset + 8;
+
+    const chunkEnd =
+      chunkStart +
+      chunkSize;
+
+    if (
+      chunkEnd >
+      bytes.length
+    ) {
+      break;
+    }
+
+    // fmt
+    if (
+      chunkId === "fmt "
+    ) {
+      fmtChunk =
+        bytes.slice(
+          chunkStart,
+          chunkEnd
+        );
+
+      if (
+        fmtChunk.length >= 16
+      ) {
+        const fmtView =
+          new DataView(
+            fmtChunk.buffer,
+            fmtChunk.byteOffset,
+            fmtChunk.byteLength
+          );
+
+        audioFormat =
+          fmtView.getUint16(
+            0,
+            true
+          );
+
+        numChannels =
+          fmtView.getUint16(
+            2,
+            true
+          );
+
+        sampleRate =
+          fmtView.getUint32(
+            4,
+            true
+          );
+
+        bitsPerSample =
+          fmtView.getUint16(
+            14,
+            true
+          );
+      }
+    }
+
+    // data
+    if (
+      chunkId === "data"
+    ) {
+      dataChunk =
+        bytes.slice(
+          chunkStart,
+          chunkEnd
+        );
+    }
+
+    // انتهينا
+    if (
+      fmtChunk &&
+      dataChunk
+    ) {
+      break;
+    }
+
+    // WAV chunks يجب أن تكون بمحاذاة زوجية
+    offset =
+      chunkEnd +
+      (chunkSize % 2);
+  }
+
+  if (
+    !fmtChunk ||
+    !dataChunk
+  ) {
+    throw new Error(
+      "تعذر قراءة بيانات WAV."
+    );
+  }
+
+  return {
+    fmtChunk,
+    data: dataChunk,
+    audioFormat,
+    numChannels,
+    sampleRate,
+    bitsPerSample
+  };
+}
+
+
+// ======================================================
+// أدوات WAV
+// ======================================================
+
+function writeString(
+  bytes,
+  offset,
+  value
+) {
+  for (
+    let i = 0;
+    i < value.length;
+    i++
+  ) {
+    bytes[
+      offset + i
+    ] =
+      value.charCodeAt(i);
+  }
+}
+
+function readString(
+  bytes,
+  offset,
+  length
+) {
+  let result = "";
+
+  for (
+    let i = 0;
+    i < length;
+    i++
+  ) {
+   
