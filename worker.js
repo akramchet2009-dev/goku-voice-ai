@@ -11,7 +11,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // الصفحة الرئيسية
     if (request.method === "GET" && url.pathname === "/") {
       return new Response("Goku Voice AI is running.", {
         headers: {
@@ -20,7 +19,6 @@ export default {
       });
     }
 
-    // توليد الصوت
     if (request.method === "POST" && url.pathname === "/api/generate") {
       try {
         const form = await request.formData();
@@ -28,10 +26,6 @@ export default {
         const text = form.get("text");
         const language = form.get("language") || "en";
         const voice = form.get("voice");
-
-        // =========================
-        // التحقق من البيانات
-        // =========================
 
         if (!text || typeof text !== "string") {
           return json(
@@ -54,10 +48,6 @@ export default {
           );
         }
 
-        // =========================
-        // تنظيف النص
-        // =========================
-
         const cleanText = normalizeText(text, language);
 
         if (!cleanText) {
@@ -67,7 +57,6 @@ export default {
           );
         }
 
-        // الحد الأقصى للموقع = 2000 حرف
         if (cleanText.length > MAX_TEXT_LENGTH) {
           return json(
             {
@@ -77,10 +66,6 @@ export default {
             400
           );
         }
-
-        // =========================
-        // تقسيم النص
-        // =========================
 
         const chunks = splitTextIntoChunks(
           cleanText,
@@ -102,16 +87,10 @@ export default {
           `Generating ${chunks.length} chunk(s)`
         );
 
-        // =========================
-        // إزالة الضوضاء مرة واحدة فقط
-        // =========================
-
+        // إزالة الضوضاء مرة واحدة
         const denoisedVoice = await removeNoise(voice);
 
-        // =========================
         // رفع الصوت المنظف إلى Chatterbox
-        // =========================
-
         const chatterboxUpload = new FormData();
 
         chatterboxUpload.append(
@@ -155,10 +134,7 @@ export default {
 
         const audioPath = uploaded[0];
 
-        // =========================
-        // توليد جميع المقاطع
-        // =========================
-
+        // توليد المقاطع
         const audioChunks = [];
 
         for (
@@ -191,10 +167,7 @@ export default {
           );
         }
 
-        // =========================
-        // دمج جميع ملفات WAV
-        // =========================
-
+        // دمج المقاطع
         console.log(
           `Merging ${audioChunks.length} audio files...`
         );
@@ -211,10 +184,6 @@ export default {
         console.log(
           "Final audio generated successfully."
         );
-
-        // =========================
-        // إرسال الصوت النهائي
-        // =========================
 
         return new Response(
           finalAudio,
@@ -253,6 +222,38 @@ export default {
     );
   }
 };
+
+
+// ======================================================
+// JSON
+// ======================================================
+
+function json(data, status = 200) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        "Content-Type":
+          "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  );
+}
+
+
+// ======================================================
+// تنظيف النص
+// ======================================================
+
+function normalizeText(text, language) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 
 // ======================================================
@@ -344,22 +345,21 @@ function splitTextIntoChunks(
   let remaining = text.trim();
 
   while (remaining.length > 0) {
-    // إذا كان النص المتبقي صغيراً بما يكفي
+
     if (remaining.length <= CHUNK_SIZE) {
       chunks.push(
         remaining.trim()
       );
+
       break;
     }
 
-    // نأخذ أول 280 حرف تقريباً
     let cut =
       remaining.lastIndexOf(
         " ",
         CHUNK_SIZE
       );
 
-    // نبحث أيضاً عن علامات الترقيم
     const punctuationPositions = [
       remaining.lastIndexOf(
         ".",
@@ -417,8 +417,6 @@ function splitTextIntoChunks(
       )
     ];
 
-    // اختر أقرب علامة ترقيم مناسبة
-    // لكن لا نقطع في مكان صغير جداً
     for (
       const position
       of punctuationPositions
@@ -431,7 +429,6 @@ function splitTextIntoChunks(
       }
     }
 
-    // إذا لم نجد مكاناً مناسباً
     if (
       cut <= 0 ||
       cut > CHUNK_SIZE
@@ -655,10 +652,6 @@ async function parseCompletedSSE(
     const rawData =
       dataMatch[1].trim();
 
-    // =========================
-    // اكتملت العملية
-    // =========================
-
     if (
       eventName === "complete"
     ) {
@@ -687,10 +680,6 @@ async function parseCompletedSSE(
         return null;
       }
     }
-
-    // =========================
-    // حدث خطأ
-    // =========================
 
     if (
       eventName === "error"
@@ -721,7 +710,7 @@ async function parseCompletedSSE(
 
 
 // ======================================================
-// البحث عن ملف الصوت داخل نتيجة Gradio
+// البحث عن ملف الصوت
 // ======================================================
 
 function findAudioFile(value) {
@@ -803,6 +792,7 @@ async function downloadAudio(
     typeof audio.path ===
       "string"
   ) {
+
     if (
       audio.path.startsWith(
         "http://"
@@ -813,6 +803,7 @@ async function downloadAudio(
     ) {
       audioUrl =
         audio.path;
+
     } else {
       audioUrl =
         `${baseUrl}/gradio_api/file=` +
@@ -851,7 +842,6 @@ function mergeWavFiles(
     return null;
   }
 
-  // إذا كان هناك ملف واحد فقط
   if (
     wavBuffers.length === 1
   ) {
@@ -863,8 +853,6 @@ function mergeWavFiles(
       parseWav
     );
 
-  // التأكد من أن جميع الملفات
-  // لها نفس خصائص الصوت
   const first =
     wavInfos[0];
 
@@ -892,7 +880,6 @@ function mergeWavFiles(
     }
   }
 
-  // حجم جميع بيانات PCM
   let totalDataSize = 0;
 
   for (
@@ -902,7 +889,6 @@ function mergeWavFiles(
       info.data.length;
   }
 
-  // نستخدم fmt chunk الأصلي
   const fmtChunk =
     first.fmtChunk;
 
@@ -924,7 +910,6 @@ function mergeWavFiles(
   const bytes =
     new Uint8Array(output);
 
-  // RIFF
   writeString(
     bytes,
     0,
@@ -945,7 +930,6 @@ function mergeWavFiles(
 
   let offset = 12;
 
-  // fmt
   writeString(
     bytes,
     offset,
@@ -970,7 +954,6 @@ function mergeWavFiles(
   offset +=
     fmtChunk.length;
 
-  // data
   writeString(
     bytes,
     offset,
@@ -987,7 +970,6 @@ function mergeWavFiles(
 
   offset += 4;
 
-  // نسخ بيانات جميع المقاطع
   for (
     const info of wavInfos
   ) {
@@ -1067,7 +1049,6 @@ function parseWav(buffer) {
       break;
     }
 
-    // fmt
     if (
       chunkId === "fmt "
     ) {
@@ -1113,7 +1094,6 @@ function parseWav(buffer) {
       }
     }
 
-    // data
     if (
       chunkId === "data"
     ) {
@@ -1124,7 +1104,6 @@ function parseWav(buffer) {
         );
     }
 
-    // انتهينا
     if (
       fmtChunk &&
       dataChunk
@@ -1132,7 +1111,6 @@ function parseWav(buffer) {
       break;
     }
 
-    // WAV chunks يجب أن تكون بمحاذاة زوجية
     offset =
       chunkEnd +
       (chunkSize % 2);
@@ -1179,6 +1157,7 @@ function writeString(
   }
 }
 
+
 function readString(
   bytes,
   offset,
@@ -1191,4 +1170,10 @@ function readString(
     i < length;
     i++
   ) {
-   
+    result += String.fromCharCode(
+      bytes[offset + i]
+    );
+  }
+
+  return result;
+      }
