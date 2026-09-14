@@ -5,59 +5,156 @@ const DENOISE_SPACE =
   "https://multimodalart-resemble-enhance-zerogpu.hf.space";
 
 const MAX_TEXT_LENGTH = 2000;
+
+// Chatterbox لديه حد أقصى 300 حرف.
+// نستخدم 280 حتى نترك هامش أمان.
 const CHUNK_SIZE = 280;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (request.method === "GET" && url.pathname === "/") {
-      return new Response("Goku Voice AI is running.", {
+    // =========================
+    // CORS
+    // =========================
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8"
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods":
+            "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers":
+            "Content-Type"
         }
       });
     }
 
-    if (request.method === "POST" && url.pathname === "/api/generate") {
+    // =========================
+    // الصفحة الرئيسية
+    // =========================
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/"
+    ) {
+      return new Response(
+        "Goku Voice AI is running.",
+        {
+          status: 200,
+          headers: {
+            "Content-Type":
+              "text/plain; charset=utf-8",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+    }
+
+    // =========================
+    // توليد الصوت
+    // =========================
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/generate"
+    ) {
       try {
-        const form = await request.formData();
+        const form =
+          await request.formData();
 
-        const text = form.get("text");
-        const language = form.get("language") || "en";
-        const voice = form.get("voice");
+        const text =
+          form.get("text");
 
-        if (!text || typeof text !== "string") {
+        const language =
+          form.get("language") || "en";
+
+        const voice =
+          form.get("voice");
+
+        // =========================
+        // التحقق من النص
+        // =========================
+
+        if (
+          !text ||
+          typeof text !== "string"
+        ) {
           return json(
-            { error: "اكتب نصاً أولاً." },
+            {
+              error:
+                "اكتب نصاً أولاً."
+            },
             400
           );
         }
 
-        if (!voice || typeof voice === "string") {
+        // =========================
+        // التحقق من الصوت
+        // =========================
+
+        if (
+          !voice ||
+          typeof voice === "string"
+        ) {
           return json(
-            { error: "لم يتم إرسال عينة صوتية." },
+            {
+              error:
+                "لم يتم إرسال عينة صوتية."
+            },
             400
           );
         }
 
-        if (!["ar", "en", "ja"].includes(language)) {
+        // =========================
+        // التحقق من اللغة
+        // =========================
+
+        if (
+          ![
+            "ar",
+            "en",
+            "ja"
+          ].includes(language)
+        ) {
           return json(
-            { error: "اللغة غير مدعومة." },
+            {
+              error:
+                "اللغة غير مدعومة."
+            },
             400
           );
         }
 
-        const cleanText = normalizeText(text, language);
+        // =========================
+        // تنظيف النص
+        // =========================
+
+        const cleanText =
+          normalizeText(
+            text,
+            language
+          );
 
         if (!cleanText) {
           return json(
-            { error: "النص فارغ." },
+            {
+              error:
+                "النص فارغ."
+            },
             400
           );
         }
 
-        if (cleanText.length > MAX_TEXT_LENGTH) {
+        // =========================
+        // الحد الأقصى
+        // =========================
+
+        if (
+          cleanText.length >
+          MAX_TEXT_LENGTH
+        ) {
           return json(
             {
               error:
@@ -67,14 +164,24 @@ export default {
           );
         }
 
-        const chunks = splitTextIntoChunks(
-          cleanText,
-          language
-        );
+        // =========================
+        // تقسيم النص
+        // =========================
 
-        if (!chunks.length) {
+        const chunks =
+          splitTextIntoChunks(
+            cleanText,
+            language
+          );
+
+        if (
+          !chunks.length
+        ) {
           return json(
-            { error: "لم يتم العثور على نص صالح." },
+            {
+              error:
+                "لم يتم العثور على نص صالح."
+            },
             400
           );
         }
@@ -87,11 +194,38 @@ export default {
           `Generating ${chunks.length} chunk(s)`
         );
 
+        // =========================
         // إزالة الضوضاء مرة واحدة
-        const denoisedVoice = await removeNoise(voice);
+        // =========================
 
-        // رفع الصوت المنظف إلى Chatterbox
-        const chatterboxUpload = new FormData();
+        console.log(
+          "Starting voice denoise..."
+        );
+
+        const denoisedVoice =
+          await removeNoise(
+            voice
+          );
+
+        if (
+          !denoisedVoice ||
+          !denoisedVoice.bytes
+        ) {
+          throw new Error(
+            "فشل الحصول على الصوت المنظف."
+          );
+        }
+
+        // =========================
+        // رفع الصوت إلى Chatterbox
+        // =========================
+
+        console.log(
+          "Uploading cleaned voice to Chatterbox..."
+        );
+
+        const chatterboxUpload =
+          new FormData();
 
         chatterboxUpload.append(
           "files",
@@ -101,22 +235,30 @@ export default {
             ],
             "clean_voice.wav",
             {
-              type: "audio/wav"
+              type:
+                "audio/wav"
             }
           )
         );
 
-        const uploadResponse = await fetch(
-          `${CHATTERBOX_SPACE}/gradio_api/upload`,
-          {
-            method: "POST",
-            body: chatterboxUpload
-          }
-        );
+        const uploadResponse =
+          await fetch(
+            `${CHATTERBOX_SPACE}/gradio_api/upload`,
+            {
+              method: "POST",
+              body:
+                chatterboxUpload
+            }
+          );
 
-        if (!uploadResponse.ok) {
+        if (
+          !uploadResponse.ok
+        ) {
+          const errorText =
+            await uploadResponse.text();
+
           throw new Error(
-            "فشل رفع الصوت إلى Chatterbox."
+            `فشل رفع الصوت إلى Chatterbox. ${errorText}`
           );
         }
 
@@ -132,20 +274,33 @@ export default {
           );
         }
 
-        const audioPath = uploaded[0];
+        const audioPath =
+          uploaded[0];
 
-        // توليد المقاطع
-        const audioChunks = [];
+        console.log(
+          "Voice uploaded successfully."
+        );
+
+        // =========================
+        // توليد جميع المقاطع
+        // =========================
+
+        const audioChunks =
+          [];
 
         for (
           let i = 0;
           i < chunks.length;
           i++
         ) {
-          const chunk = chunks[i];
+          const chunk =
+            chunks[i];
 
           console.log(
-            `Generating chunk ${i + 1}/${chunks.length}:`,
+            `Generating chunk ${i + 1}/${chunks.length}`
+          );
+
+          console.log(
             chunk
           );
 
@@ -156,7 +311,9 @@ export default {
               audioPath
             );
 
-          if (!generatedAudio) {
+          if (
+            !generatedAudio
+          ) {
             throw new Error(
               `فشل توليد الجزء ${i + 1} من ${chunks.length}.`
             );
@@ -165,15 +322,24 @@ export default {
           audioChunks.push(
             generatedAudio
           );
+
+          console.log(
+            `Chunk ${i + 1} completed.`
+          );
         }
 
-        // دمج المقاطع
+        // =========================
+        // دمج ملفات WAV
+        // =========================
+
         console.log(
-          `Merging ${audioChunks.length} audio files...`
+          "Merging audio files..."
         );
 
         const finalAudio =
-          mergeWavFiles(audioChunks);
+          mergeWavFiles(
+            audioChunks
+          );
 
         if (!finalAudio) {
           throw new Error(
@@ -185,14 +351,23 @@ export default {
           "Final audio generated successfully."
         );
 
+        // =========================
+        // إرسال الصوت النهائي
+        // =========================
+
         return new Response(
           finalAudio,
           {
             status: 200,
             headers: {
-              "Content-Type": "audio/wav",
-              "Cache-Control": "no-store",
-              "Access-Control-Allow-Origin": "*"
+              "Content-Type":
+                "audio/wav",
+
+              "Cache-Control":
+                "no-store",
+
+              "Access-Control-Allow-Origin":
+                "*"
             }
           }
         );
@@ -217,7 +392,11 @@ export default {
     return new Response(
       "Not Found",
       {
-        status: 404
+        status: 404,
+        headers: {
+          "Access-Control-Allow-Origin":
+            "*"
+        }
       }
     );
   }
@@ -225,10 +404,13 @@ export default {
 
 
 // ======================================================
-// JSON
+// JSON RESPONSE
 // ======================================================
 
-function json(data, status = 200) {
+function json(
+  data,
+  status = 200
+) {
   return new Response(
     JSON.stringify(data),
     {
@@ -236,7 +418,9 @@ function json(data, status = 200) {
       headers: {
         "Content-Type":
           "application/json; charset=utf-8",
-        "Access-Control-Allow-Origin": "*"
+
+        "Access-Control-Allow-Origin":
+          "*"
       }
     }
   );
@@ -247,11 +431,23 @@ function json(data, status = 200) {
 // تنظيف النص
 // ======================================================
 
-function normalizeText(text, language) {
-  return text
-    .replace(/\r\n/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
+function normalizeText(
+  text,
+  language
+) {
+  return String(text)
+    .replace(
+      /\r\n/g,
+      "\n"
+    )
+    .replace(
+      /[ \t]+/g,
+      " "
+    )
+    .replace(
+      /\n{3,}/g,
+      "\n\n"
+    )
     .trim();
 }
 
@@ -265,6 +461,27 @@ async function generateChatterboxAudio(
   language,
   audioPath
 ) {
+  /*
+    مهم جداً:
+
+    عند استخدام عينة صوت بلغة مختلفة عن لغة
+    النص، Chatterbox ينصح بجعل CFG = 0.
+
+    لذلك:
+    English -> 0
+    Arabic  -> 0.35
+    Japanese -> 0.35
+  */
+
+  const cfg =
+    language === "en"
+      ? 0
+      : 0.35;
+
+  console.log(
+    `Chatterbox language=${language}, CFG=${cfg}`
+  );
+
   const generateResponse =
     await fetch(
       `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
@@ -276,53 +493,71 @@ async function generateChatterboxAudio(
             "application/json"
         },
 
-        body: JSON.stringify({
-          data: [
-            text,
-            language,
+        body:
+          JSON.stringify({
+            data: [
+              // النص
+              text,
 
-            {
-              path: audioPath,
+              // اللغة
+              language,
 
-              meta: {
-                _type:
-                  "gradio.FileData"
+              // الصوت المرجعي
+              {
+                path:
+                  audioPath,
+
+                meta: {
+                  _type:
+                    "gradio.FileData"
+                },
+
+                orig_name:
+                  "clean_voice.wav"
               },
 
-              orig_name:
-                "clean_voice.wav"
-            },
+              // Exaggeration
+              0.45,
 
-            // Exaggeration
-            0.45,
+              // Temperature
+              0.60,
 
-            // Temperature
-            0.60,
+              // Seed
+              0,
 
-            // Seed
-            0,
-
-            // CFG / Pace
-            0.35
-          ]
-        })
+              // CFG / Pace
+              cfg
+            ]
+          })
       }
     );
 
-  if (!generateResponse.ok) {
+  if (
+    !generateResponse.ok
+  ) {
+    const errorText =
+      await generateResponse.text();
+
     throw new Error(
-      "فشل بدء توليد الصوت."
+      `Chatterbox رفض طلب التوليد: ${errorText}`
     );
   }
 
   const generateData =
     await generateResponse.json();
 
-  if (!generateData.event_id) {
+  if (
+    !generateData.event_id
+  ) {
     throw new Error(
-      "لم يتم الحصول على event_id."
+      "لم يتم الحصول على event_id من Chatterbox."
     );
   }
+
+  console.log(
+    "Chatterbox event:",
+    generateData.event_id
+  );
 
   return await waitForSSEAudio(
     CHATTERBOX_SPACE,
@@ -342,11 +577,17 @@ function splitTextIntoChunks(
 ) {
   const chunks = [];
 
-  let remaining = text.trim();
+  let remaining =
+    text.trim();
 
-  while (remaining.length > 0) {
-
-    if (remaining.length <= CHUNK_SIZE) {
+  while (
+    remaining.length > 0
+  ) {
+    // إذا كان المتبقي أقل من الحد
+    if (
+      remaining.length <=
+      CHUNK_SIZE
+    ) {
       chunks.push(
         remaining.trim()
       );
@@ -354,69 +595,73 @@ function splitTextIntoChunks(
       break;
     }
 
+    // نبحث عن أفضل مكان للقطع
     let cut =
       remaining.lastIndexOf(
         " ",
         CHUNK_SIZE
       );
 
-    const punctuationPositions = [
-      remaining.lastIndexOf(
-        ".",
-        CHUNK_SIZE
-      ),
+    // علامات الترقيم
+    const punctuationPositions =
+      [
+        remaining.lastIndexOf(
+          ".",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "!",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          "!",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "?",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          "?",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "؟",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          "؟",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "،",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          "،",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        ",",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          ",",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "؛",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          "؛",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        ";",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          ";",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "。",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          "。",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "！",
-        CHUNK_SIZE
-      ),
+        remaining.lastIndexOf(
+          "！",
+          CHUNK_SIZE
+        ),
 
-      remaining.lastIndexOf(
-        "？",
-        CHUNK_SIZE
-      )
-    ];
+        remaining.lastIndexOf(
+          "？",
+          CHUNK_SIZE
+        )
+      ];
 
+    // اختيار أقرب علامة ترقيم
     for (
       const position
       of punctuationPositions
@@ -425,24 +670,32 @@ function splitTextIntoChunks(
         position > 100 &&
         position > cut
       ) {
-        cut = position + 1;
+        cut =
+          position + 1;
       }
     }
 
+    // إذا لم نجد مكاناً جيداً
     if (
       cut <= 0 ||
       cut > CHUNK_SIZE
     ) {
-      cut = CHUNK_SIZE;
+      cut =
+        CHUNK_SIZE;
     }
 
     const chunk =
       remaining
-        .slice(0, cut)
+        .slice(
+          0,
+          cut
+        )
         .trim();
 
     if (chunk) {
-      chunks.push(chunk);
+      chunks.push(
+        chunk
+      );
     }
 
     remaining =
@@ -459,7 +712,9 @@ function splitTextIntoChunks(
 // إزالة الضوضاء
 // ======================================================
 
-async function removeNoise(voice) {
+async function removeNoise(
+  voice
+) {
   const originalBytes =
     await voice.arrayBuffer();
 
@@ -487,13 +742,19 @@ async function removeNoise(voice) {
       `${DENOISE_SPACE}/gradio_api/upload`,
       {
         method: "POST",
-        body: uploadForm
+        body:
+          uploadForm
       }
     );
 
-  if (!uploadResponse.ok) {
+  if (
+    !uploadResponse.ok
+  ) {
+    const errorText =
+      await uploadResponse.text();
+
     throw new Error(
-      "فشل رفع العينة إلى مزيل الضوضاء."
+      `فشل رفع العينة إلى مزيل الضوضاء. ${errorText}`
     );
   }
 
@@ -523,43 +784,52 @@ async function removeNoise(voice) {
             "application/json"
         },
 
-        body: JSON.stringify({
-          data: [
-            {
-              path: audioPath,
+        body:
+          JSON.stringify({
+            data: [
+              {
+                path:
+                  audioPath,
 
-              meta: {
-                _type:
-                  "gradio.FileData"
+                meta: {
+                  _type:
+                    "gradio.FileData"
+                },
+
+                orig_name:
+                  voice.name ||
+                  "input_audio"
               },
 
-              orig_name:
-                voice.name ||
-                "input_audio"
-            },
+              "Midpoint",
 
-            "Midpoint",
+              64,
 
-            64,
+              0.5,
 
-            0.5,
-
-            true
-          ]
-        })
+              true
+            ]
+          })
       }
     );
 
-  if (!predictResponse.ok) {
+  if (
+    !predictResponse.ok
+  ) {
+    const errorText =
+      await predictResponse.text();
+
     throw new Error(
-      "فشل تشغيل مزيل الضوضاء."
+      `فشل تشغيل مزيل الضوضاء. ${errorText}`
     );
   }
 
   const predictData =
     await predictResponse.json();
 
-  if (!predictData.event_id) {
+  if (
+    !predictData.event_id
+  ) {
     throw new Error(
       "مزيل الضوضاء لم يُرجع event_id."
     );
@@ -579,8 +849,11 @@ async function removeNoise(voice) {
   }
 
   return {
-    bytes: cleanAudio,
-    name: "clean_voice.wav"
+    bytes:
+      cleanAudio,
+
+    name:
+      "clean_voice.wav"
   };
 }
 
@@ -599,9 +872,14 @@ async function waitForSSEAudio(
       `${baseUrl}/gradio_api/call/${endpoint}/${eventId}`
     );
 
-  if (!response.ok) {
+  if (
+    !response.ok
+  ) {
+    const errorText =
+      await response.text();
+
     throw new Error(
-      "فشل الاتصال بنتيجة المعالجة."
+      `فشل الاتصال بنتيجة المعالجة. ${errorText}`
     );
   }
 
@@ -624,10 +902,13 @@ async function parseCompletedSSE(
   baseUrl
 ) {
   const blocks =
-    text.split(/\n\n+/);
+    text.split(
+      /\n\n+/
+    );
 
   for (
-    const block of blocks
+    const block
+    of blocks
   ) {
     const eventMatch =
       block.match(
@@ -652,18 +933,29 @@ async function parseCompletedSSE(
     const rawData =
       dataMatch[1].trim();
 
+    // =========================
+    // العملية اكتملت
+    // =========================
+
     if (
-      eventName === "complete"
+      eventName ===
+      "complete"
     ) {
       try {
         const data =
-          JSON.parse(rawData);
+          JSON.parse(
+            rawData
+          );
 
         const audio =
-          findAudioFile(data);
+          findAudioFile(
+            data
+          );
 
         if (!audio) {
-          return null;
+          throw new Error(
+            "لم يتم العثور على ملف الصوت في نتيجة Chatterbox."
+          );
         }
 
         return await downloadAudio(
@@ -673,51 +965,110 @@ async function parseCompletedSSE(
 
       } catch (error) {
         console.error(
-          "SSE PARSE ERROR:",
+          "SSE COMPLETE PARSE ERROR:",
           error
         );
 
-        return null;
+        throw new Error(
+          error?.message ||
+          "تعذر قراءة الصوت الناتج."
+        );
       }
     }
 
+    // =========================
+    // حدث خطأ
+    // =========================
+
     if (
-      eventName === "error"
+      eventName ===
+      "error"
     ) {
       let message =
         "خدمة الصوت أعادت خطأ.";
 
       try {
         const parsed =
-          JSON.parse(rawData);
+          JSON.parse(
+            rawData
+          );
 
         if (
           typeof parsed ===
           "string"
         ) {
-          message = parsed;
+          message =
+            parsed;
+        } else if (
+          parsed &&
+          typeof parsed ===
+            "object"
+        ) {
+          message =
+            parsed.message ||
+            parsed.error ||
+            parsed.detail ||
+            JSON.stringify(
+              parsed
+            );
         }
-      } catch {}
+
+      } catch {
+        message =
+          rawData ||
+          message;
+      }
+
+      console.error(
+        "CHATTERBOX ORIGINAL ERROR:",
+        rawData
+      );
 
       throw new Error(
-        message
+        `Chatterbox: ${message}`
       );
     }
   }
 
-  return null;
+  throw new Error(
+    "لم تُرجع خدمة الصوت نتيجة مكتملة."
+  );
 }
 
 
 // ======================================================
-// البحث عن ملف الصوت
+// البحث عن ملف الصوت داخل نتيجة Gradio
 // ======================================================
 
-function findAudioFile(value) {
+function findAudioFile(
+  value
+) {
   if (!value) {
     return null;
   }
 
+  // إذا كانت Array
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item
+      of value
+    ) {
+      const found =
+        findAudioFile(
+          item
+        );
+
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  // إذا كان Object
   if (
     typeof value ===
     "object"
@@ -734,21 +1085,6 @@ function findAudioFile(value) {
       "string"
     ) {
       return value;
-    }
-
-    if (
-      Array.isArray(value)
-    ) {
-      for (
-        const item of value
-      ) {
-        const found =
-          findAudioFile(item);
-
-        if (found) {
-          return found;
-        }
-      }
     }
 
     for (
@@ -778,21 +1114,25 @@ async function downloadAudio(
   baseUrl,
   audio
 ) {
-  let audioUrl = null;
+  let audioUrl =
+    null;
 
+  // URL مباشر
   if (
     audio.url &&
     typeof audio.url ===
       "string"
   ) {
-    audioUrl = audio.url;
+    audioUrl =
+      audio.url;
+  }
 
-  } else if (
+  // Path
+  else if (
     audio.path &&
     typeof audio.path ===
       "string"
   ) {
-
     if (
       audio.path.startsWith(
         "http://"
@@ -803,377 +1143,9 @@ async function downloadAudio(
     ) {
       audioUrl =
         audio.path;
-
     } else {
       audioUrl =
         `${baseUrl}/gradio_api/file=` +
         encodeURIComponent(
           audio.path
         );
-    }
-  }
-
-  if (!audioUrl) {
-    return null;
-  }
-
-  const response =
-    await fetch(audioUrl);
-
-  if (!response.ok) {
-    return null;
-  }
-
-  return await response.arrayBuffer();
-}
-
-
-// ======================================================
-// دمج ملفات WAV
-// ======================================================
-
-function mergeWavFiles(
-  wavBuffers
-) {
-  if (
-    !wavBuffers ||
-    wavBuffers.length === 0
-  ) {
-    return null;
-  }
-
-  if (
-    wavBuffers.length === 1
-  ) {
-    return wavBuffers[0];
-  }
-
-  const wavInfos =
-    wavBuffers.map(
-      parseWav
-    );
-
-  const first =
-    wavInfos[0];
-
-  for (
-    let i = 1;
-    i < wavInfos.length;
-    i++
-  ) {
-    const current =
-      wavInfos[i];
-
-    if (
-      current.audioFormat !==
-        first.audioFormat ||
-      current.numChannels !==
-        first.numChannels ||
-      current.sampleRate !==
-        first.sampleRate ||
-      current.bitsPerSample !==
-        first.bitsPerSample
-    ) {
-      throw new Error(
-        "ملفات الصوت الناتجة لها خصائص مختلفة ولا يمكن دمجها."
-      );
-    }
-  }
-
-  let totalDataSize = 0;
-
-  for (
-    const info of wavInfos
-  ) {
-    totalDataSize +=
-      info.data.length;
-  }
-
-  const fmtChunk =
-    first.fmtChunk;
-
-  const outputSize =
-    12 +
-    8 +
-    fmtChunk.length +
-    8 +
-    totalDataSize;
-
-  const output =
-    new ArrayBuffer(
-      outputSize
-    );
-
-  const view =
-    new DataView(output);
-
-  const bytes =
-    new Uint8Array(output);
-
-  writeString(
-    bytes,
-    0,
-    "RIFF"
-  );
-
-  view.setUint32(
-    4,
-    outputSize - 8,
-    true
-  );
-
-  writeString(
-    bytes,
-    8,
-    "WAVE"
-  );
-
-  let offset = 12;
-
-  writeString(
-    bytes,
-    offset,
-    "fmt "
-  );
-
-  offset += 4;
-
-  view.setUint32(
-    offset,
-    fmtChunk.length,
-    true
-  );
-
-  offset += 4;
-
-  bytes.set(
-    fmtChunk,
-    offset
-  );
-
-  offset +=
-    fmtChunk.length;
-
-  writeString(
-    bytes,
-    offset,
-    "data"
-  );
-
-  offset += 4;
-
-  view.setUint32(
-    offset,
-    totalDataSize,
-    true
-  );
-
-  offset += 4;
-
-  for (
-    const info of wavInfos
-  ) {
-    bytes.set(
-      info.data,
-      offset
-    );
-
-    offset +=
-      info.data.length;
-  }
-
-  return output;
-}
-
-
-// ======================================================
-// تحليل WAV
-// ======================================================
-
-function parseWav(buffer) {
-  const bytes =
-    new Uint8Array(buffer);
-
-  const view =
-    new DataView(buffer);
-
-  if (
-    readString(bytes, 0, 4) !==
-      "RIFF" ||
-    readString(bytes, 8, 4) !==
-      "WAVE"
-  ) {
-    throw new Error(
-      "الملف الناتج ليس WAV صالحاً."
-    );
-  }
-
-  let offset = 12;
-
-  let fmtChunk = null;
-  let dataChunk = null;
-
-  let audioFormat = null;
-  let numChannels = null;
-  let sampleRate = null;
-  let bitsPerSample = null;
-
-  while (
-    offset + 8 <=
-    bytes.length
-  ) {
-    const chunkId =
-      readString(
-        bytes,
-        offset,
-        4
-      );
-
-    const chunkSize =
-      view.getUint32(
-        offset + 4,
-        true
-      );
-
-    const chunkStart =
-      offset + 8;
-
-    const chunkEnd =
-      chunkStart +
-      chunkSize;
-
-    if (
-      chunkEnd >
-      bytes.length
-    ) {
-      break;
-    }
-
-    if (
-      chunkId === "fmt "
-    ) {
-      fmtChunk =
-        bytes.slice(
-          chunkStart,
-          chunkEnd
-        );
-
-      if (
-        fmtChunk.length >= 16
-      ) {
-        const fmtView =
-          new DataView(
-            fmtChunk.buffer,
-            fmtChunk.byteOffset,
-            fmtChunk.byteLength
-          );
-
-        audioFormat =
-          fmtView.getUint16(
-            0,
-            true
-          );
-
-        numChannels =
-          fmtView.getUint16(
-            2,
-            true
-          );
-
-        sampleRate =
-          fmtView.getUint32(
-            4,
-            true
-          );
-
-        bitsPerSample =
-          fmtView.getUint16(
-            14,
-            true
-          );
-      }
-    }
-
-    if (
-      chunkId === "data"
-    ) {
-      dataChunk =
-        bytes.slice(
-          chunkStart,
-          chunkEnd
-        );
-    }
-
-    if (
-      fmtChunk &&
-      dataChunk
-    ) {
-      break;
-    }
-
-    offset =
-      chunkEnd +
-      (chunkSize % 2);
-  }
-
-  if (
-    !fmtChunk ||
-    !dataChunk
-  ) {
-    throw new Error(
-      "تعذر قراءة بيانات WAV."
-    );
-  }
-
-  return {
-    fmtChunk,
-    data: dataChunk,
-    audioFormat,
-    numChannels,
-    sampleRate,
-    bitsPerSample
-  };
-}
-
-
-// ======================================================
-// أدوات WAV
-// ======================================================
-
-function writeString(
-  bytes,
-  offset,
-  value
-) {
-  for (
-    let i = 0;
-    i < value.length;
-    i++
-  ) {
-    bytes[
-      offset + i
-    ] =
-      value.charCodeAt(i);
-  }
-}
-
-
-function readString(
-  bytes,
-  offset,
-  length
-) {
-  let result = "";
-
-  for (
-    let i = 0;
-    i < length;
-    i++
-  ) {
-    result += String.fromCharCode(
-      bytes[offset + i]
-    );
-  }
-
-  return result;
-      }
