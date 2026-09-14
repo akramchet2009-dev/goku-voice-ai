@@ -71,7 +71,7 @@ export default {
         const cleanText = normalizeText(text, language);
 
         if (!cleanText) {
-          return json({ error: "النص فارغ." }, 400);
+          return json({ error: "النص فارغ بعد التنظيف." }, 400);
         }
 
         if (cleanText.length > MAX_TEXT_LENGTH) {
@@ -91,6 +91,7 @@ export default {
           return json({ error: "لم يتم العثور على نص صالح." }, 400);
         }
 
+        console.log(`Language: ${language}`);
         console.log(`Text length: ${cleanText.length}`);
         console.log(`Generating ${chunks.length} chunk(s)`);
 
@@ -242,7 +243,7 @@ async function generateChatterboxAudio(text, language, audioPath) {
               EXAGGERATION,  // Exaggeration
               TEMPERATURE,   // Temperature
               0,             // Seed
-              CFG_PACE       // CFG / Pace ← تم رفعه ليبطئ الكلام
+              CFG_PACE       // CFG / Pace
             ]
           })
         }
@@ -349,7 +350,7 @@ function splitTextIntoChunks(text, language) {
 
 
 // ======================================================
-// تنظيف النص
+// تنظيف النص العام
 // ======================================================
 
 function normalizeText(text, language) {
@@ -361,7 +362,41 @@ function normalizeText(text, language) {
     .replace(/[ \t]+/g, " ")
     .trim();
 
+  // إذا كانت اللغة عربية، طبّق التنظيف الخاص
+  if (language === "ar") {
+    result = normalizeArabicText(result);
+  }
+
   return result;
+}
+
+
+// ======================================================
+// تنظيف النص العربي من التشكيل والرموز الخاصة
+// ======================================================
+
+function normalizeArabicText(text) {
+  if (!text) return "";
+
+  return text
+    // إزالة التشكيل (الفتحة، الضمة، الكسرة، السكون، الشدة، التنوين)
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    // إزالة التطويل (الكشيدة)
+    .replace(/\u0640/g, "")
+    // توحيد الألف (أ، إ، آ → ا)
+    .replace(/[أإآٱ]/g, "ا")
+    // توحيد الياء (ى → ي)
+    .replace(/ى/g, "ي")
+    // توحيد التاء المربوطة (ة → ه) - يساعد النموذج على النطق
+    .replace(/ة/g, "ه")
+    // إزالة الرموز الخاصة غير الضرورية مع الحفاظ على علامات الترقيم
+    .replace(
+      /[^\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\s\.\,\!\?\؛\،\:\-\n]/g,
+      ""
+    )
+    // إزالة المسافات الزائدة
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 
@@ -510,10 +545,24 @@ async function parseCompletedSSE(text, baseUrl) {
 
       try {
         const parsed = JSON.parse(rawData);
+
         if (typeof parsed === "string") {
           message = parsed;
+        } else if (parsed && typeof parsed === "object") {
+          if (typeof parsed.error === "string") {
+            message = parsed.error;
+          } else if (typeof parsed.message === "string") {
+            message = parsed.message;
+          } else if (Array.isArray(parsed) && parsed.length > 0) {
+            message = String(parsed[0]);
+          }
         }
-      } catch {}
+      } catch {
+        message = rawData;
+      }
+
+      // تسجيل الخطأ الكامل في سجل Cloudflare
+      console.error("CHATTERBOX ERROR:", rawData);
 
       throw new Error(message);
     }
@@ -561,10 +610,15 @@ async function downloadAudio(baseUrl, audio) {
   if (audio.url && typeof audio.url === "string") {
     audioUrl = audio.url;
   } else if (audio.path && typeof audio.path === "string") {
-    if (audio.path.startsWith("http://") || audio.path.startsWith("https://")) {
+    if (
+      audio.path.startsWith("http://") ||
+      audio.path.startsWith("https://")
+    ) {
       audioUrl = audio.path;
     } else {
-      audioUrl = `${baseUrl}/gradio_api/file=` + encodeURIComponent(audio.path);
+      audioUrl =
+        `${baseUrl}/gradio_api/file=` +
+        encodeURIComponent(audio.path);
     }
   }
 
@@ -598,14 +652,19 @@ function mergeWavFiles(wavBuffers) {
       current.sampleRate !== first.sampleRate ||
       current.bitsPerSample !== first.bitsPerSample
     ) {
-      throw new Error("ملفات الصوت الناتجة لها خصائص مختلفة ولا يمكن دمجها.");
+      throw new Error(
+        "ملفات الصوت الناتجة لها خصائص مختلفة ولا يمكن دمجها."
+      );
     }
   }
 
   // حساب حجم الصمت بين المقاطع
   const bytesPerSample = first.bitsPerSample / 8;
   const silenceBytes = Math.floor(
-    first.sampleRate * first.numChannels * bytesPerSample * SILENCE_SECONDS
+    first.sampleRate *
+      first.numChannels *
+      bytesPerSample *
+      SILENCE_SECONDS
   );
 
   const totalSilence = silenceBytes * (wavInfos.length - 1);
@@ -616,7 +675,8 @@ function mergeWavFiles(wavBuffers) {
   }
 
   const fmtChunk = first.fmtChunk;
-  const outputSize = 12 + 8 + fmtChunk.length + 8 + totalDataSize;
+  const outputSize =
+    12 + 8 + fmtChunk.length + 8 + totalDataSize;
 
   const output = new ArrayBuffer(outputSize);
   const view = new DataView(output);
@@ -735,30 +795,4 @@ function parseWav(buffer) {
 // ======================================================
 
 function writeString(bytes, offset, value) {
-  for (let i = 0; i < value.length; i++) {
-    bytes[offset + i] = value.charCodeAt(i);
-  }
-}
-
-function readString(bytes, offset, length) {
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += String.fromCharCode(bytes[offset + i]);
-  }
-  return result;
-}
-
-
-// ======================================================
-// رد JSON
-// ======================================================
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*"
-    }
-  });
-  }
+  for 
