@@ -7,6 +7,10 @@ const DENOISE_SPACE =
 const MAX_TEXT_LENGTH = 2000;
 const CHUNK_SIZE = 280;
 
+const HTTP_TIMEOUT_MS = 120000; // دقيقتان لكل طلب
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 2000;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -63,36 +67,44 @@ export default {
         console.log(`Text length: ${cleanText.length}`);
         console.log(`Generating ${chunks.length} chunk(s)`);
 
+        // 1) إزالة الضوضاء من العينة
         const denoisedVoice = await removeNoise(voice);
         if (!denoisedVoice || !denoisedVoice.bytes) {
           throw new Error("فشل تنظيف الصوت المدخل.");
         }
 
-        const chatterboxUpload = new FormData();
-        chatterboxUpload.append(
-          "files",
-          new File([denoisedVoice.bytes], "clean_voice.wav", {
-            type: "audio/wav"
-          })
-        );
+        // 2) ارفع العينة النظيفة إلى Chatterbox (مع Retry)
+        const uploaded = await withRetry(async () => {
+          const fd = new FormData();
+          fd.append(
+            "files",
+            new File([denoisedVoice.bytes], "clean_voice.wav", {
+              type: "audio/wav"
+            })
+          );
 
-        const uploadResponse = await fetch(
-          `${CHATTERBOX_SPACE}/gradio_api/upload`,
-          { method: "POST", body: chatterboxUpload }
-        );
+          const uploadResponse = await fetchWithTimeout(
+            `${CHATTERBOX_SPACE}/gradio_api/upload`,
+            { method: "POST", body: fd }
+          );
 
-        if (!uploadResponse.ok) {
-          throw new Error("فشل رفع الصوت إلى Chatterbox.");
-        }
+          if (!uploadResponse.ok) {
+            throw new Error(
+              `فشل رفع الصوت إلى Chatterbox (HTTP ${uploadResponse.status}).`
+            );
+          }
 
-        const uploaded = await uploadResponse.json();
-        if (!Array.isArray(uploaded) || !uploaded[0]) {
-          throw new Error("Chatterbox لم يستقبل العينة.");
-        }
+          const json = await uploadResponse.json();
+          if (!Array.isArray(json) || !json[0]) {
+            throw new Error("Chatterbox لم يستقبل العينة.");
+          }
+          return json;
+        }, "chatterbox-upload");
 
         const audioPath = uploaded[0];
-        const audioChunks = [];
 
+        // 3) ولّد كل مقطع
+        const audioChunks = [];
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i];
           console.log(
@@ -115,9 +127,9 @@ export default {
           audioChunks.push(generatedAudio);
         }
 
+        // 4) ادمج كل ملفات WAV
         console.log(`Merging ${audioChunks.length} audio files...`);
         const finalAudio = mergeWavFiles(audioChunks);
-
         if (!finalAudio) {
           throw new Error("فشل دمج المقاطع الصوتية.");
         }
@@ -135,10 +147,7 @@ export default {
       } catch (error) {
         console.error("GENERATION ERROR:", error);
         return json(
-          {
-            error:
-              error?.message || "حدث خطأ أثناء معالجة الصوت."
-          },
+          { error: error?.message || "حدث خطأ أثناء معالجة الصوت." },
           500
         );
       }
@@ -150,6 +159,10 @@ export default {
     });
   }
 };
+
+/* ======================================================
+   أدوات عامة
+====================================================== */
 
 function corsHeaders() {
   return {
@@ -169,8 +182,65 @@ function json(data, status = 200) {
   });
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isTransientError(err) {
+  const msg = String(err?.message || "").toLowerCase();
+  return [
+    "queue",
+    "sleeping",
+    "loading",
+    "starting",
+    "timeout",
+    "timed out",
+    "503",
+    "502",
+    "504",
+    "network",
+    "failed to fetch",
+    "connection",
+    "econnreset",
+    "broken pipe",
+    "event not found",
+    "rate limit",
+    "429"
+  ].some((p) => msg.includes(p));
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = HTTP_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e.name === "AbortError") {
+      throw new Error("انتهت مهلة الاتصال بخدمة الصوت.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function withRetry(fn, label) {
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      console.warn(`[${label}] محاولة ${attempt + 1} فشلت:`, err?.message);
+      if (!isTransientError(err) || attempt === MAX_RETRIES) throw err;
+      await sleep(RETRY_BASE_DELAY_MS * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 /* ======================================================
-   ✅ الدالة المفقودة: تنظيف النص
+   تنظيف النص
 ====================================================== */
 function normalizeText(text, language) {
   if (!text || typeof text !== "string") return "";
@@ -181,7 +251,7 @@ function normalizeText(text, language) {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  // إزالة التشكيل للعربية (اختياري - قد يحسّن النطق)
+  // إزالة التشكيل للعربية
   if (language === "ar") {
     result = result.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "");
   }
@@ -190,50 +260,7 @@ function normalizeText(text, language) {
 }
 
 /* ======================================================
-   توليد مقطع واحد من Chatterbox
-====================================================== */
-async function generateChatterboxAudio(text, language, audioPath) {
-  const generateResponse = await fetch(
-    `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        data: [
-          text,
-          language,
-          {
-            path: audioPath,
-            meta: { _type: "gradio.FileData" },
-            orig_name: "clean_voice.wav"
-          },
-          0.45, // Exaggeration
-          0.60, // Temperature
-          0,    // Seed
-          language === "en" ? 0 : 0.35 // CFG
-        ]
-      })
-    }
-  );
-
-  if (!generateResponse.ok) {
-    throw new Error("فشل بدء توليد الصوت.");
-  }
-
-  const generateData = await generateResponse.json();
-  if (!generateData.event_id) {
-    throw new Error("لم يتم الحصول على event_id.");
-  }
-
-  return await waitForSSEAudio(
-    CHATTERBOX_SPACE,
-    "generate_tts_audio",
-    generateData.event_id
-  );
-}
-
-/* ======================================================
-   تقسيم النص
+   تقسيم النص إلى مقاطع
 ====================================================== */
 function splitTextIntoChunks(text, language) {
   const chunks = [];
@@ -281,101 +308,155 @@ function splitTextIntoChunks(text, language) {
 }
 
 /* ======================================================
-   إزالة الضوضاء
+   توليد مقطع واحد من Chatterbox (مع Retry)
+====================================================== */
+async function generateChatterboxAudio(text, language, audioPath) {
+  return await withRetry(async () => {
+    const generateResponse = await fetchWithTimeout(
+      `${CHATTERBOX_SPACE}/gradio_api/call/generate_tts_audio`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: [
+            text,
+            language,
+            {
+              path: audioPath,
+              meta: { _type: "gradio.FileData" },
+              orig_name: "clean_voice.wav"
+            },
+            0.45, // Exaggeration
+            0.60, // Temperature
+            0,    // Seed
+            language === "en" ? 0 : 0.35 // CFG
+          ]
+        })
+      }
+    );
+
+    if (!generateResponse.ok) {
+      throw new Error(
+        `فشل بدء توليد الصوت (HTTP ${generateResponse.status}).`
+      );
+    }
+
+    const generateData = await generateResponse.json();
+    if (!generateData.event_id) {
+      throw new Error("لم يتم الحصول على event_id.");
+    }
+
+    return await waitForSSEAudio(
+      CHATTERBOX_SPACE,
+      "generate_tts_audio",
+      generateData.event_id
+    );
+  }, "chatterbox-generate");
+}
+
+/* ======================================================
+   إزالة الضوضاء (مع Retry)
 ====================================================== */
 async function removeNoise(voice) {
   const originalBytes = await voice.arrayBuffer();
-  const uploadForm = new FormData();
+  const fileName = voice.name || "input_audio";
+  const fileType = voice.type || "audio/wav";
 
-  uploadForm.append(
-    "files",
-    new File([originalBytes], voice.name || "input_audio", {
-      type: voice.type || "audio/wav"
-    })
-  );
+  return await withRetry(async () => {
+    // 1) ارفع إلى مزيل الضوضاء
+    const uploadForm = new FormData();
+    uploadForm.append(
+      "files",
+      new File([originalBytes], fileName, { type: fileType })
+    );
 
-  const uploadResponse = await fetch(
-    `${DENOISE_SPACE}/gradio_api/upload`,
-    { method: "POST", body: uploadForm }
-  );
+    const uploadResponse = await fetchWithTimeout(
+      `${DENOISE_SPACE}/gradio_api/upload`,
+      { method: "POST", body: uploadForm }
+    );
 
-  if (!uploadResponse.ok) {
-    throw new Error("فشل رفع العينة إلى مزيل الضوضاء.");
-  }
-
-  const uploaded = await uploadResponse.json();
-  if (!Array.isArray(uploaded) || !uploaded[0]) {
-    throw new Error("مزيل الضوضاء لم يستقبل العينة.");
-  }
-
-  const audioPath = uploaded[0];
-
-  const predictResponse = await fetch(
-    `${DENOISE_SPACE}/gradio_api/call/predict`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        data: [
-          {
-            path: audioPath,
-            meta: { _type: "gradio.FileData" },
-            orig_name: voice.name || "input_audio"
-          },
-          "Midpoint",
-          64,
-          0.5,
-          true
-        ]
-      })
+    if (!uploadResponse.ok) {
+      throw new Error(
+        `فشل رفع العينة إلى مزيل الضوضاء (HTTP ${uploadResponse.status}).`
+      );
     }
-  );
 
-  if (!predictResponse.ok) {
-    throw new Error("فشل تشغيل مزيل الضوضاء.");
-  }
+    const uploaded = await uploadResponse.json();
+    if (!Array.isArray(uploaded) || !uploaded[0]) {
+      throw new Error("مزيل الضوضاء لم يستقبل العينة.");
+    }
 
-  const predictData = await predictResponse.json();
-  if (!predictData.event_id) {
-    throw new Error("مزيل الضوضاء لم يُرجع event_id.");
-  }
+    // 2) اطلب المعالجة
+    const predictResponse = await fetchWithTimeout(
+      `${DENOISE_SPACE}/gradio_api/call/predict`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: [
+            {
+              path: uploaded[0],
+              meta: { _type: "gradio.FileData" },
+              orig_name: fileName
+            },
+            "Midpoint",
+            64,
+            0.5,
+            true
+          ]
+        })
+      }
+    );
 
-  const cleanAudio = await waitForSSEAudio(
-    DENOISE_SPACE,
-    "predict",
-    predictData.event_id
-  );
+    if (!predictResponse.ok) {
+      throw new Error(
+        `فشل تشغيل مزيل الضوضاء (HTTP ${predictResponse.status}).`
+      );
+    }
 
-  if (!cleanAudio) {
-    throw new Error("لم يتم العثور على الصوت المنظف.");
-  }
+    const predictData = await predictResponse.json();
+    if (!predictData.event_id) {
+      throw new Error("مزيل الضوضاء لم يُرجع event_id.");
+    }
 
-  return {
-    bytes: cleanAudio,
-    name: "clean_voice.wav"
-  };
+    // 3) انتظر النتيجة
+    const cleanAudio = await waitForSSEAudio(
+      DENOISE_SPACE,
+      "predict",
+      predictData.event_id
+    );
+
+    if (!cleanAudio) {
+      throw new Error("لم يتم العثور على الصوت المنظف.");
+    }
+
+    return { bytes: cleanAudio, name: "clean_voice.wav" };
+  }, "removeNoise");
 }
 
 /* ======================================================
    انتظار نتيجة Gradio SSE
 ====================================================== */
 async function waitForSSEAudio(baseUrl, endpoint, eventId) {
-  const response = await fetch(
-    `${baseUrl}/gradio_api/call/${endpoint}/${eventId}`
+  const response = await fetchWithTimeout(
+    `${baseUrl}/gradio_api/call/${endpoint}/${eventId}`,
+    { headers: { Accept: "text/event-stream" } }
   );
 
   if (!response.ok) {
-    throw new Error("فشل الاتصال بنتيجة المعالجة.");
+    throw new Error(
+      `فشل الاتصال بنتيجة المعالجة (HTTP ${response.status}).`
+    );
   }
 
   const text = await response.text();
-  return parseCompletedSSE(text, baseUrl);
+  return await parseCompletedSSE(text, baseUrl, endpoint);
 }
 
 /* ======================================================
    تحليل SSE
 ====================================================== */
-async function parseCompletedSSE(text, baseUrl) {
+async function parseCompletedSSE(text, baseUrl, endpoint) {
   const blocks = text.split(/\n\n+/);
 
   for (const block of blocks) {
@@ -400,20 +481,46 @@ async function parseCompletedSSE(text, baseUrl) {
     }
 
     if (eventName === "error") {
-      let message = "خدمة الصوت أعادت خطأ.";
-      try {
-        const parsed = JSON.parse(rawData);
-        if (typeof parsed === "string") {
-          message = parsed;
-        } else if (parsed && typeof parsed === "object") {
-          message = parsed.message || parsed.error || parsed.detail || message;
-        }
-      } catch {}
-      throw new Error(message);
+      throw new Error(extractErrorMessage(rawData, endpoint));
     }
   }
 
   return null;
+}
+
+function extractErrorMessage(rawData, endpoint) {
+  let message = "خدمة الصوت أعادت خطأ.";
+  try {
+    const parsed = JSON.parse(rawData);
+
+    if (typeof parsed === "string") {
+      message = parsed;
+    } else if (parsed && typeof parsed === "object") {
+      message =
+        parsed.message ||
+        parsed.error ||
+        parsed.detail ||
+        parsed?.error?.message ||
+        message;
+    }
+  } catch {
+    if (rawData && rawData.length < 500) {
+      message = rawData;
+    }
+  }
+
+  const lower = String(message).toLowerCase();
+  if (lower.includes("queue")) {
+    return "الخدمة مشغولة حالياً، جرّب بعد لحظات. (queue full)";
+  }
+  if (lower.includes("sleep") || lower.includes("loading")) {
+    return "الخدمة تستيقظ الآن، أعد المحاولة بعد بضع ثوانٍ.";
+  }
+  if (lower.includes("quota") || lower.includes("rate")) {
+    return "تم تجاوز الحد المسموح مؤقتاً. انتظر قليلاً ثم أعد المحاولة.";
+  }
+
+  return message;
 }
 
 /* ======================================================
@@ -465,7 +572,7 @@ async function downloadAudio(baseUrl, audio) {
 
   if (!audioUrl) return null;
 
-  const response = await fetch(audioUrl);
+  const response = await fetchWithTimeout(audioUrl);
   if (!response.ok) return null;
 
   return await response.arrayBuffer();
@@ -533,7 +640,7 @@ function mergeWavFiles(wavBuffers) {
 }
 
 /* ======================================================
-   تحليل WAV (نسخة كاملة ومُصحّحة)
+   تحليل WAV
 ====================================================== */
 function parseWav(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -583,7 +690,7 @@ function parseWav(buffer) {
     }
 
     offset = chunkEnd;
-    // محاذاة القطع الفردية (RIFF padding)
+    // محاذاة RIFF للقطع الفردية
     if (chunkSize % 2 === 1) offset += 1;
   }
 
@@ -602,7 +709,7 @@ function parseWav(buffer) {
 }
 
 /* ======================================================
-   ✅ الدالتان المفقودتان: readString / writeString
+   قراءة / كتابة نصوص بايتية
 ====================================================== */
 function readString(bytes, offset, length) {
   let result = "";
@@ -616,4 +723,4 @@ function writeString(bytes, offset, str) {
   for (let i = 0; i < str.length; i++) {
     bytes[offset + i] = str.charCodeAt(i);
   }
-          }
+  }
